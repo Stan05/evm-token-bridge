@@ -93,14 +93,14 @@ const getValidatorMintSignature = async (receiver: string, amount: BigNumber, ta
         { name: 'chainId', type: 'uint256'},
         { name: 'verifyingContract', type: 'address' }
     ];
-
+    const chainId:number = parseInt(await targetChainProvider.send("eth_chainId", []));
     const domain = {
         name: BridgeABI.contractName,
         version: '1',
-        chainId: parseInt(await targetChainProvider.send("eth_chainId", [])),
+        chainId: chainId,
         verifyingContract: targetBridgeContract.address
     };
-    
+    console.log(domain);
     const mint = [ 
         { name: 'receiver', type: 'address' },
         { name: 'amount', type: 'uint256' },
