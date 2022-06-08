@@ -2,12 +2,11 @@
 pragma solidity >=0.8.4;
 
 import "./BridgeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "./Governance.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract Bridge is Ownable {
+contract Bridge is Governance {
     bytes32 private DOMAIN_SEPARATOR;
-    mapping(address => bool) private registeredValidators;
 
     event Lock(
         address indexed from,
@@ -27,7 +26,7 @@ contract Bridge is Ownable {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId, address verifyingContract)"
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
                 ),
                 keccak256(bytes("Bridge")),
                 keccak256(bytes("1")),
@@ -50,7 +49,7 @@ contract Bridge is Ownable {
         bytes32 s
     ) external {
         require(_amount > 0, "Bridged amount is required.");
-        //todo check _token is erc20 use SafeERC20
+
         BridgeERC20(_token).permit(
             msg.sender,
             address(this),
@@ -91,33 +90,33 @@ contract Bridge is Ownable {
      */
     function release() external {}
 
-    /**
-     * @notice register the validator to perform mint transactions
-     */
-    function registerValidator(address _validator) external onlyOwner {
-        registeredValidators[_validator] = true;
-    }
-
-    /**
-     * @notice unregister the validator to perform mint transactions
-     */
-    function unRegisterValidator(address _validator) external onlyOwner {
-        registeredValidators[_validator] = false;
-    }
-
-    /**
-     * @notice checks if the validator has access
-     */
-    function hasAccess(address _validator) external view returns (bool) {
-        return registeredValidators[_validator];
-    }
-
     function _validateSignatures(
         address _receiver,
         uint256 _amount,
         address payable _token,
         bytes[] memory _validatorsSignatures
     ) private view {
+        for (uint i = 0; i < _validatorsSignatures.length; i++) {
+            bytes memory sig = _validatorsSignatures[i];
+            address _validatorAddress = _recover(
+                _receiver,
+                _amount,
+                _token,
+                sig
+            );
+            require(
+                registeredValidators[_validatorAddress],
+                "Unrecognized validator signature"
+            );
+        }
+    }
+
+    function _recover(
+        address _receiver,
+        uint256 _amount,
+        address payable _token,
+        bytes memory _validatorsSignature
+    ) private view returns (address) {
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -125,7 +124,7 @@ contract Bridge is Ownable {
                 keccak256(
                     abi.encode(
                         keccak256(
-                            "mint(address _receiver,uint256 _amount,address _token)"
+                            "mint(address receiver,uint256 amount,address token)"
                         ),
                         _receiver,
                         _amount,
@@ -135,15 +134,6 @@ contract Bridge is Ownable {
             )
         );
 
-        for (uint i = 0; i < _validatorsSignatures.length; i++) {
-            address _validatorAddress = ECDSA.recover(
-                digest,
-                _validatorsSignatures[i]
-            );
-            require(
-                registeredValidators[_validatorAddress],
-                "Validator not registered"
-            );
-        }
+        return ECDSA.recover(digest, _validatorsSignature);
     }
 }
