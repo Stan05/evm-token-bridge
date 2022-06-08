@@ -1,11 +1,13 @@
+import 'dotenv/config';
 import { task, subtask } from "hardhat/config";
 import "@nomiclabs/hardhat-ethers";
-import 'dotenv/config';
+import '@nomiclabs/hardhat-waffle';
+import 'solidity-coverage';
 
 /**
  * Deployments Tasks
  */
-task("deploy-localhost", "Deploys the bridge and one test erc20 token on localhost")
+task("deploy-localhost", "Deploys the bridge and one optional erc20 token on localhost")
   .addOptionalParam("name", "The token name")
   .addOptionalParam("symbol", "The token bridge")
   .setAction(async ({ name, symbol }, hre) => {
@@ -49,5 +51,11 @@ export default {
       url: process.env.GANACHE_URL,
       chainId: 1337
     }
-  }
+  },
+  settings: {
+    optimizer: {
+      enabled: true,
+      runs: 200,
+    },
+  },
 };
