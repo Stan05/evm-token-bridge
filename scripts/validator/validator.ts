@@ -1,21 +1,23 @@
 import 'dotenv/config'
 import { ethers } from 'hardhat';
-import { BigNumber } from 'ethers';
+import { BigNumber, Contract, Wallet } from 'ethers';
 import hre from 'hardhat';
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
 import BridgeERC20ABI from '../../artifacts/contracts/BridgeERC20.sol/BridgeERC20.json';
+import { JsonRpcProvider } from '@ethersproject/providers';
 
-const sourceBridgeContractAddress = process.env.SOURCE_BRIDGE_CONTRACT_ADDR_KEY?.toString() ?? "";
-const targetBridgeContractAddress = process.env.TARGET_BRIDGE_CONTRACT_ADDR_KEY?.toString() ?? "";
-const validatorPrivateKey = process.env.GANACHE_VALIDATOR_PRIVATE_KEY?.toString() ?? "";
-const tokenRegistry = new Map<string, string>();
+const sourceBridgeContractAddress: string = process.env.SOURCE_BRIDGE_CONTRACT_ADDR_KEY?.toString() ?? "";
+const targetBridgeContractAddress: string = process.env.TARGET_BRIDGE_CONTRACT_ADDR_KEY?.toString() ?? "";
+const validatorPrivateKey: string = process.env.GANACHE_VALIDATOR_PRIVATE_KEY?.toString() ?? "";
+const deployerPrivateKey: string = process.env.DEPLOYER_PRIVATE_KEY?.toString() ?? "";
 
-const sourceChainProvider = new hre.ethers.providers.JsonRpcProvider(hre.config.networks.localhost.url);
-const targetChainProvider = new hre.ethers.providers.JsonRpcProvider(process.env.GANACHE_URL?.toString() ?? "");
-const validator = new hre.ethers.Wallet(validatorPrivateKey, targetChainProvider);
+const sourceChainProvider: JsonRpcProvider = new hre.ethers.providers.JsonRpcProvider(hre.config.networks.localhost.url);
+const targetChainProvider: JsonRpcProvider = new hre.ethers.providers.JsonRpcProvider(process.env.GANACHE_URL?.toString() ?? "");
+const validator: Wallet = new hre.ethers.Wallet(validatorPrivateKey, targetChainProvider);
+const deployer: Wallet = new hre.ethers.Wallet(deployerPrivateKey, sourceChainProvider);
 
-const sourceBridgeContract = new hre.ethers.Contract(sourceBridgeContractAddress, BridgeABI.abi, sourceChainProvider);
-const targetBridgeContract = new hre.ethers.Contract(targetBridgeContractAddress, BridgeABI.abi, targetChainProvider);
+const sourceBridgeContract: Contract = new hre.ethers.Contract(sourceBridgeContractAddress, BridgeABI.abi, sourceChainProvider);
+const targetBridgeContract: Contract = new hre.ethers.Contract(targetBridgeContractAddress, BridgeABI.abi, targetChainProvider);
 
 async function main() {
     const filter = {
@@ -50,23 +52,16 @@ const handleLockEvent = async (event: { data: any; topics: string[]; blockNumber
     console.log('--------------Lock Event--------------');
     const decodedData = hre.ethers.utils.defaultAbiCoder.decode(['address', 'uint256'], event.data);
     const from = hre.ethers.utils.hexStripZeros(event.topics[1]);
-    const lockedToken = decodedData[0];
-    const lockedAmount = decodedData[1];
+    const lockedToken:string = decodedData[0];
+    const lockedAmount: BigNumber = decodedData[1];
+    const targetChainId: number = parseInt(event.topics[2]);
     console.log('Block Number :', event.blockNumber);
     console.log('From : ', from);
-    console.log('TargetChainId : ', parseInt(event.topics[2]));
+    console.log('TargetChainId : ', targetChainId);
     console.log('Locked Token : ', lockedToken);
     console.log('Locked Amount : ', lockedAmount.toString());
-    // Apply some validations ? 
-    // validate the amount was deposited in source bridge contract address
-    // get the target chain token from registry
-    // validate locked token has a wrapped on target chain, otherwise create with factory
-    let targetToken = tokenRegistry.get(lockedToken);
-    if (targetToken === undefined) {
-        console.log('\nDoesn\'t have corresponding wrapped token, deploying one');
-        targetToken = await deployNewWrappedTokenContract(lockedToken);
-        tokenRegistry.set(lockedToken, targetToken);
-    }
+
+    const targetToken: string = await lookupTargetTokenAddress(lockedToken, targetChainId);
     console.log("Validators\'s signature %s", await getValidatorMintSignature(from, lockedAmount, targetToken));
 }
 
@@ -126,6 +121,16 @@ const getValidatorMintSignature = async (receiver: string, amount: BigNumber, ta
     const signatureLike = await targetChainProvider.send('eth_signTypedData_v4', [validator.address, data]); 
 
     return signatureLike;
+}
+
+const lookupTargetTokenAddress = async (sourceToken:string, targetChainId:number) => {
+    let targetTokenAddress = await sourceBridgeContract.lookupTargetTokenAddress(sourceToken, targetChainId);
+    if (targetTokenAddress == undefined || targetTokenAddress == ethers.constants.AddressZero) {
+        console.log('\nDoesn\'t have corresponding wrapped token, deploying one');
+        targetTokenAddress = await deployNewWrappedTokenContract(sourceToken);
+        await sourceBridgeContract.connect(deployer).registerTargetTokenAddress(sourceToken, targetChainId, targetTokenAddress);
+    }
+    return targetTokenAddress;
 }
 
 main();

@@ -3,9 +3,10 @@ pragma solidity >=0.8.4;
 
 import "./BridgeERC20.sol";
 import "./Governance.sol";
+import "./Registry.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract Bridge is Governance {
+contract Bridge is Governance, Registry {
     bytes32 private DOMAIN_SEPARATOR;
 
     event Lock(

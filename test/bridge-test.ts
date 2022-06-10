@@ -53,12 +53,8 @@ describe("Bridge", function () {
       signatures.push(sig);
           
       expect(await bridge.hasAccess(await validator.getAddress())).to.be.true;
-      expect(
-        await bridge.connect(user).mint(receiverAddress, amount, tokenAddress, signatures)
-      ).not.throw;
-      expect(
-        (await token.balanceOf(receiverAddress)).toNumber()
-      ).to.equal(amount);
+      await expect(() => bridge.connect(user).mint(receiverAddress, amount, tokenAddress, signatures))
+        .to.changeTokenBalance(token, user, amount);
     });
   
     it("Should allow mint with more than one validators registered", async function () {      
@@ -77,12 +73,8 @@ describe("Bridge", function () {
       
       expect(await bridge.hasAccess(await validator.getAddress())).to.be.true;
       expect(await bridge.hasAccess(await validator2.getAddress())).to.be.true;
-      expect(
-        await bridge.connect(user).mint(receiverAddress, amount, tokenAddress, signatures)
-      ).not.throw;
-      expect(
-        (await token.balanceOf(receiverAddress)).toNumber()
-      ).to.equal(amount);
+      await expect(() => bridge.connect(user).mint(receiverAddress, amount, tokenAddress, signatures))
+        .to.changeTokenBalance(token, user, amount);
     });
   
     it("Should not allow mint when validator is not registered", async function () {    
