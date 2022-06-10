@@ -3,7 +3,7 @@ import { ethers } from 'hardhat';
 import { BigNumber, Contract, Wallet } from 'ethers';
 import hre from 'hardhat';
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
-import BridgeERC20ABI from '../../artifacts/contracts/BridgeERC20.sol/BridgeERC20.json';
+import ERC20ABI from '../../artifacts/contracts/ERC20Token.sol/ERC20Token.json';
 import { JsonRpcProvider } from '@ethersproject/providers';
 
 const sourceBridgeContractAddress: string = process.env.SOURCE_BRIDGE_CONTRACT_ADDR_KEY?.toString() ?? "";
@@ -20,9 +20,11 @@ const sourceBridgeContract: Contract = new hre.ethers.Contract(sourceBridgeContr
 const targetBridgeContract: Contract = new hre.ethers.Contract(targetBridgeContractAddress, BridgeABI.abi, targetChainProvider);
 
 async function main() {
-    const filter = {
+    const blockNumber = await sourceChainProvider.send("eth_blockNumber", []);
+    
+    const sourceChainLockFilter = {
         address: sourceBridgeContract.address,
-        fromBlock: 'latest', // get the block number 
+        fromBlock: blockNumber, // get the block number 
         topics: [
             sourceBridgeContract.Lock // filter by target chain id as well, one validator will be running for conection between networks
         ]
@@ -42,7 +44,7 @@ const handleMintEvent = async (event: { topics: any[]; data: any; blockNumber: a
     console.log('Receiver : ', receiver);
     console.log('Mint Token : ', mintToken);
     console.log('Mint Amount : ', mintAmount.toString());
-    const mintTokenContract = new hre.ethers.Contract(mintToken, BridgeERC20ABI.abi, targetChainProvider);
+    const mintTokenContract = new hre.ethers.Contract(mintToken, ERC20ABI.abi, targetChainProvider);
     const tokenName = await mintTokenContract.name();
     const newBalance = (await mintTokenContract.balanceOf(receiver)).toString();
     console.log('User\'s %s balance %d of \'%s\' token.\n', receiver, newBalance, tokenName);
@@ -65,19 +67,19 @@ const handleLockEvent = async (event: { data: any; topics: string[]; blockNumber
     console.log("Validators\'s signature %s", await getValidatorMintSignature(from, lockedAmount, targetToken));
 }
 
-const deployNewWrappedTokenContract = async (sourceToken: string) => {
-    const sourceTokenContract = new hre.ethers.Contract(sourceToken, BridgeERC20ABI.abi, sourceChainProvider);
+const deployBridgeTokenOnTargetChain = async (sourceToken: string) => {
+    const sourceTokenContract = new hre.ethers.Contract(sourceToken, ERC20ABI.abi, sourceChainProvider);
     const name = await sourceTokenContract.name();
     const symbol = await sourceTokenContract.symbol();
 
-    const ContractFactory = new hre.ethers.ContractFactory(BridgeERC20ABI.abi , BridgeERC20ABI.bytecode, validator);
-    const contract = await ContractFactory.deploy("Wrapped" + name, "W" + symbol, targetBridgeContractAddress);
-    console.log('Waiting for deployment... ');
-    await contract.deployed();
+    const bridgeTokenAddressTx = await targetBridgeContract.connect(deployer).createToken("Bridge" + name, "b" + symbol);
+    const receipt = await bridgeTokenAddressTx.wait();
+    console.log(receipt);
+    const bridgeTokenAddress: string = ethers.utils.hexStripZeros(receipt.events.filter((e: { event: string; }) => e.event == "TokenCreated")[0].topics[1]);
     
-    console.log('Wrapped token %s deployed on address: %s \n', "Wrapped" + name, contract.address);
+    console.log('Bridge token %s deployed on address: %s \n', "Bridge" + name, bridgeTokenAddress);
 
-    return contract.address
+    return bridgeTokenAddress;
 }
 
 const getValidatorMintSignature = async (receiver: string, amount: BigNumber, targetToken: string) => {
@@ -88,14 +90,14 @@ const getValidatorMintSignature = async (receiver: string, amount: BigNumber, ta
         { name: 'chainId', type: 'uint256'},
         { name: 'verifyingContract', type: 'address' }
     ];
-    const chainId:number = parseInt(await targetChainProvider.send("eth_chainId", []));
+    const chainId: number = parseInt(await targetChainProvider.send("eth_chainId", []));
     const domain = {
         name: BridgeABI.contractName,
         version: '1',
         chainId: chainId,
         verifyingContract: targetBridgeContract.address
     };
-    console.log(domain);
+    
     const mint = [ 
         { name: 'receiver', type: 'address' },
         { name: 'amount', type: 'uint256' },
@@ -123,11 +125,11 @@ const getValidatorMintSignature = async (receiver: string, amount: BigNumber, ta
     return signatureLike;
 }
 
-const lookupTargetTokenAddress = async (sourceToken:string, targetChainId:number) => {
+const lookupTargetTokenAddress = async (sourceToken: string, targetChainId: number) => {
     let targetTokenAddress = await sourceBridgeContract.lookupTargetTokenAddress(sourceToken, targetChainId);
     if (targetTokenAddress == undefined || targetTokenAddress == ethers.constants.AddressZero) {
         console.log('\nDoesn\'t have corresponding wrapped token, deploying one');
-        targetTokenAddress = await deployNewWrappedTokenContract(sourceToken);
+        targetTokenAddress = await deployBridgeTokenOnTargetChain(sourceToken);
         await sourceBridgeContract.connect(deployer).registerTargetTokenAddress(sourceToken, targetChainId, targetTokenAddress);
     }
     return targetTokenAddress;

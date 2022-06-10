@@ -1,40 +1,49 @@
-import { ethers, waffle } from "hardhat";
+import { ethers } from "hardhat";
 import { Contract, ContractFactory, Signer, Wallet } from "ethers";
-import { expect} from "chai";
-import { MockProvider } from "@ethereum-waffle/provider";
+import { expect } from "chai";
+import ERC20TokenABI from "../artifacts/contracts/ERC20Token.sol/ERC20Token.json";
 
 describe("Bridge", function () {
   let accounts: Signer[];
   let bridge: Contract;
-  let token: Contract;
+  let bridgeToken: Contract;
 
   beforeEach(async function () {
     const bridgeFactory: ContractFactory = await ethers.getContractFactory("Bridge");
     bridge = await bridgeFactory.deploy();
     await bridge.deployed();
 
-    const tokenFactory: ContractFactory = await ethers.getContractFactory("BridgeERC20");
-    token = await tokenFactory.deploy("Token", "TKN", bridge.address);
-    await token.deployed();
+    const createTokenTx = (await bridge.createToken("BridgeToken", "bTKN"));
+    const receipt = await createTokenTx.wait();
+    const tokenAddress: string = ethers.utils.hexStripZeros(receipt.events.filter((e: { event: string; }) => e.event == "TokenCreated")[0].topics[1]);
+    
+    bridgeToken = await ethers.getContractAtFromArtifact(ERC20TokenABI, tokenAddress);
 
     accounts = await ethers.getSigners();
   });
 
   describe('Lock', function () {
+    it('Should not allow transfer 0 amount',async () => {
+      
+    });
+
     it('Should transfer token with permit', async () => {
       let user: Wallet = ethers.Wallet.createRandom();
-      
+      const tokenFactory: ContractFactory = await ethers.getContractFactory("ERC20Token");
+      const regularToken = await tokenFactory.deploy("Token", "TKN");
+      await regularToken.deployed();
+
       const targetChainId: number = 2;
-      const tokenAddress: string = token.address;
+      const tokenAddress: string = regularToken.address;
       const amount: number = 10;
-      await token.mint(await user.getAddress(), amount);
-      const signature = await getUserPermit(user, token, bridge.address, amount);
+      await regularToken.mint(await user.getAddress(), amount);
+      const signature = await getUserPermit(user, regularToken, bridge.address, amount);
       
       await bridge
           .connect(user)
           .lock(targetChainId, tokenAddress, amount, signature.deadline, signature.v, signature.r, signature.s);
-      expect(await token.balanceOf(bridge.address)).to.equal(amount);
-      expect(await token.balanceOf(await user.getAddress())).to.equal(0);
+      expect(await regularToken.balanceOf(bridge.address)).to.equal(amount);
+      expect(await regularToken.balanceOf(await user.getAddress())).to.equal(0);
     });
   });
 
@@ -47,14 +56,14 @@ describe("Bridge", function () {
 
       const receiverAddress: string = await user.getAddress();
       const amount: number = 10;
-      const tokenAddress: string = token.address;
+      const tokenAddress: string = bridgeToken.address;
       const signatures: string[] = [];
       const sig = await getValidatorMintSignature(validator, receiverAddress, amount, tokenAddress, bridge.address);
       signatures.push(sig);
           
       expect(await bridge.hasAccess(await validator.getAddress())).to.be.true;
       await expect(() => bridge.connect(user).mint(receiverAddress, amount, tokenAddress, signatures))
-        .to.changeTokenBalance(token, user, amount);
+        .to.changeTokenBalance(bridgeToken, user, amount);
     });
   
     it("Should allow mint with more than one validators registered", async function () {      
@@ -66,7 +75,7 @@ describe("Bridge", function () {
 
       const receiverAddress: string = await user.getAddress();
       const amount: number = 10;
-      const tokenAddress: string = token.address;
+      const tokenAddress: string = bridgeToken.address;
       const signatures: string[] = [];
       signatures.push(await getValidatorMintSignature(validator, receiverAddress, amount, tokenAddress, bridge.address));
       signatures.push(await getValidatorMintSignature(validator2, receiverAddress, amount, tokenAddress, bridge.address));
@@ -74,7 +83,7 @@ describe("Bridge", function () {
       expect(await bridge.hasAccess(await validator.getAddress())).to.be.true;
       expect(await bridge.hasAccess(await validator2.getAddress())).to.be.true;
       await expect(() => bridge.connect(user).mint(receiverAddress, amount, tokenAddress, signatures))
-        .to.changeTokenBalance(token, user, amount);
+        .to.changeTokenBalance(bridgeToken, user, amount);
     });
   
     it("Should not allow mint when validator is not registered", async function () {    

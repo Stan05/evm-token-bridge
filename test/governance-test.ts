@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { BigNumber, Contract, ContractFactory, Signer } from "ethers";
+import { Contract, ContractFactory, Signer } from "ethers";
 import { expect } from "chai";
 
 describe("Governance", function () {
@@ -9,7 +9,7 @@ describe("Governance", function () {
   beforeEach(async function () {
     const governanceFactory: ContractFactory = await ethers.getContractFactory("Governance");
     accounts = await ethers.getSigners();
-    governance = await governanceFactory.deploy();
+    governance = await governanceFactory.deploy("ContractName");
     await governance.deployed();
   });
 

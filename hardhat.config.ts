@@ -7,31 +7,21 @@ import 'solidity-coverage';
 /**
  * Deployments Tasks
  */
-task("deploy-localhost", "Deploys the bridge and one optional erc20 token on localhost")
-  .addOptionalParam("name", "The token name")
-  .addOptionalParam("symbol", "The token bridge")
-  .setAction(async ({ name, symbol }, hre) => {
+task("deploy-localhost", "Deploys the bridge on localhost")
+  .setAction(async (args, hre) => {
     await hre.run('compile');
-    const bridgeAddress = await hre.run('deploy-bridge');
-    if (name !== undefined && symbol !== undefined) {
-      await hre.run('deploy-token', { name, symbol, bridgeAddress });
-    }
+    const deployBridge = require("./scripts/deployments/deploy-bridge");
+    return await deployBridge();
  });
 
-subtask("deploy-token", "Deploys token on localhost")
+task("deploy-token", "Deploys token on localhost")
   .addParam("name", "The token name")
   .addParam("symbol", "The token symbol")
   .addOptionalParam("bridgeAddress", "The bridge to be granted minter role")
-  .setAction(async ({name, symbol, bridgeAddress}) => {
-    const deployToken = require("./scripts/deployments/deploy-token");
-    return await deployToken(name, symbol, bridgeAddress);
- });
-
-subtask("deploy-bridge", "Deploys bridge on localhost")
-  .setAction(async () => {
-    const deployBridge = require("./scripts/deployments/deploy-bridge");
-    return await deployBridge();
-  });
+  .setAction(async ({name, symbol}) => {
+     const deployToken = require("./scripts/deployments/deploy-token");
+    return await deployToken(name, symbol);
+});
 
 /**
  * Interactions Tasks

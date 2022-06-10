@@ -4,12 +4,12 @@ pragma solidity >=0.8.4;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Registry is Ownable {
-    mapping(address => mapping(uint8 => address))
+    mapping(address => mapping(uint16 => address))
         private sourceTokenToTargetToken;
 
     event TargetTokenRegistered(
         address indexed sourceToken,
-        uint8 indexed targetChainId,
+        uint16 indexed targetChainId,
         address targetToken
     );
 
@@ -18,7 +18,7 @@ contract Registry is Ownable {
      */
     function lookupTargetTokenAddress(
         address _sourceToken,
-        uint8 _targetChainId
+        uint16 _targetChainId
     ) external view returns (address) {
         return sourceTokenToTargetToken[_sourceToken][_targetChainId];
     }
@@ -28,7 +28,7 @@ contract Registry is Ownable {
      */
     function registerTargetTokenAddress(
         address _sourceToken,
-        uint8 _targetChainId,
+        uint16 _targetChainId,
         address _targetTokenAddress
     ) external onlyOwner {
         require(_sourceToken != address(0), "Invalid source address");

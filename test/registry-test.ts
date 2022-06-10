@@ -1,5 +1,5 @@
-import { ethers, waffle } from "hardhat";
-import { BigNumber, Contract, ContractFactory, Signer } from "ethers";
+import { ethers } from "hardhat";
+import { Contract, ContractFactory, Signer } from "ethers";
 import { expect } from "chai";
 
 describe("Registry", function () {
