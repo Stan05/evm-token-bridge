@@ -23,4 +23,19 @@ describe("Registry", function () {
         .to.equal(targetToken);
   });
 
+  it("Should not allow register of source token pointing to zero address",async () => {
+    const sourceToken: string = ethers.constants.AddressZero;
+    const targetChainId: number = 2;
+    const targetToken: string = await accounts[1].getAddress();
+    await expect(registry.registerTargetTokenAddress(sourceToken, targetChainId, targetToken))
+        .to.be.revertedWith('Invalid source address');
+  })
+
+  it("Should not allow register of target token pointing to zero address",async () => {
+    const sourceToken: string = await accounts[0].getAddress();
+    const targetChainId: number = 2;
+    const targetToken: string = ethers.constants.AddressZero;
+    await expect(registry.registerTargetTokenAddress(sourceToken, targetChainId, targetToken))
+        .to.be.revertedWith('Invalid target address');
+  })
 });

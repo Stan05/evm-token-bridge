@@ -31,6 +31,8 @@ contract Registry is Ownable {
         uint8 _targetChainId,
         address _targetTokenAddress
     ) external onlyOwner {
+        require(_sourceToken != address(0), "Invalid source address");
+        require(_targetTokenAddress != address(0), "Invalid target address");
         sourceTokenToTargetToken[_sourceToken][
             _targetChainId
         ] = _targetTokenAddress;
