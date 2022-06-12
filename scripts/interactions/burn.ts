@@ -8,7 +8,7 @@ import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
 import ERC20TokenABI from '../../artifacts/contracts/ERC20Token.sol/ERC20Token.json';
 
 const targetBridgeContractAddress: string = process.env.TARGET_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
-const wrappedTokenContractAddress: string = "0xb7a5bd0345ef1cc5e66bf61bdec17d2461fbd968";
+const wrappedTokenContractAddress: string = "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be";
 const targetChainProvider: StaticJsonRpcProvider = new hre.ethers.providers.StaticJsonRpcProvider(process.env.GANACHE_URL?.toString() ?? "");
 const targetBridgeContract: Contract = new hre.ethers.Contract(targetBridgeContractAddress, BridgeABI.abi, targetChainProvider);
 const targetTokenContract: Contract = new hre.ethers.Contract(wrappedTokenContractAddress, ERC20TokenABI.abi, targetChainProvider);

@@ -23,6 +23,8 @@ contract Bridge is Governance, TokenFactory {
         uint amount
     );
 
+    event Release(address indexed receiver, address token, uint amount);
+
     constructor(address[] memory _validators)
         Governance("Bridge", _validators)
     {}
@@ -117,5 +119,16 @@ contract Bridge is Governance, TokenFactory {
     /**
      * @notice releases locked erc20 tokens
      */
-    function release() external {}
+    function release(
+        address _receiver,
+        uint256 _amount,
+        address payable _token,
+        bytes[] calldata _validatorsSignatures
+    ) external {
+        _validateSignatures(_receiver, _amount, _token, _validatorsSignatures);
+
+        ERC20Token(_token).transfer(msg.sender, _amount);
+
+        emit Release(msg.sender, _token, _amount);
+    }
 }

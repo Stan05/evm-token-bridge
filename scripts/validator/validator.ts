@@ -17,7 +17,10 @@ const targetDeployerPrivateKey: string = process.env.TARGET_DEPLOYER_PRIVATE_KEY
 
 const sourceChainProvider: StaticJsonRpcProvider = new hre.ethers.providers.StaticJsonRpcProvider(hre.config.networks.localhost.url);
 const targetChainProvider: StaticJsonRpcProvider = new hre.ethers.providers.StaticJsonRpcProvider(process.env.GANACHE_URL?.toString() ?? "");
-const validator: Wallet = new hre.ethers.Wallet(validatorPrivateKey, targetChainProvider);
+
+const validatorSourceChainWallet: Wallet = new hre.ethers.Wallet(validatorPrivateKey, sourceChainProvider);
+const validatorTargetChainWallet: Wallet = new hre.ethers.Wallet(validatorPrivateKey, targetChainProvider);
+
 const sourceDeployer: Wallet = new hre.ethers.Wallet(sourceDeployerPrivateKey, sourceChainProvider);
 const targetDeployer: Wallet = new hre.ethers.Wallet(targetDeployerPrivateKey, targetChainProvider);
 
@@ -38,6 +41,7 @@ async function main() {
     }
     
     //sourceChainProvider.on(sourceBridgeContract.filters.Lock(), handleLockEvent);
+    sourceChainProvider.on(sourceBridgeContract.filters.Release(), handleReleaseEvent);
     //targetChainProvider.on(targetBridgeContract.filters.Mint(), handleMintEvent);
     targetChainProvider.on(targetBridgeContract.filters.Burn(), handleBurnEvent);
 }
@@ -72,7 +76,7 @@ const handleLockEvent = async (event: { data: any; topics: string[]; blockNumber
     console.log('Locked Amount : ', lockedAmount.toString());
 
     const targetToken: string = await lookupTargetTokenAddress(lockedToken, targetChainId);
-    console.log("Validators\'s signature %s\n", await getValidatorMintSignature(from, lockedAmount, targetToken));
+    console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(from, lockedAmount, targetToken, targetBridgeContract, targetChainProvider));
 }
 
 const handleBurnEvent = async (event: { data: BytesLike; topics: string[]; blockNumber: any; }) => {
@@ -90,11 +94,13 @@ const handleBurnEvent = async (event: { data: BytesLike; topics: string[]; block
 
     const sourceToken: string = await lookupSourceTokenAddress(burnToken, targetChainId);
     console.log(sourceToken);
-    console.log("Validators\'s signature %s", await getValidatorAllowanceSignature(from, burnAmount, sourceToken));
+    console.log("Validators\'s signature %s", await getValidatorAllowanceSignature(from, burnAmount, sourceToken, sourceBridgeContractAddress, sourceChainProvider));
 }
+
 const handleReleaseEvent = async (event: any) => {
     console.log(event);
 }
+
 const deployBridgeTokenOnTargetChain = async (sourceToken: string) => {
     const sourceTokenContract = new hre.ethers.Contract(sourceToken, ERC20ABI.abi, sourceChainProvider);
     const name = await sourceTokenContract.name();
@@ -126,7 +132,7 @@ const getValidatorMintSignature = async (receiver: string, amount: BigNumber, ta
         verifyingContract: targetBridgeContract.address
     };
     
-    const mint = [ 
+    const Allowance = [ 
         { name: 'receiver', type: 'address' },
         { name: 'amount', type: 'uint256' },
         { name: 'token', type: 'address' },
@@ -141,60 +147,39 @@ const getValidatorMintSignature = async (receiver: string, amount: BigNumber, ta
     const data = {
         types: {
             EIP712Domain,
-            mint
+            Allowance
         },
         domain,
-        primaryType: 'mint',
+        primaryType: 'Allowance',
         message
     }
     
-    const signatureLike = await targetChainProvider.send('eth_signTypedData_v4', [validator.address, data]); 
+    const signatureLike = await targetChainProvider.send('eth_signTypedData_v4', [validatorTargetChainWallet.address, data]); 
 
     return signatureLike;
 }
 
-const getValidatorAllowanceSignature = async (receiver: string, amount: BigNumber, targetToken: string) => {
-    
-    const EIP712Domain = [ 
-        { name: 'name', type: 'string' },
-        { name: 'version', type: 'string' },
-        { name: 'chainId', type: 'uint256'},
-        { name: 'verifyingContract', type: 'address' }
-    ];
-    
-    const chainId: number = parseInt(await targetChainProvider.send("eth_chainId", []));
-    const domain = {
-        name: BridgeABI.contractName,
-        version: '1',
-        chainId: chainId,
-        verifyingContract: targetBridgeContract.address
-    };
-    
-    const allowance = [ 
-        { name: 'receiver', type: 'address' },
-        { name: 'amount', type: 'uint256' },
-        { name: 'token', type: 'address' },
-    ];
-
-    const message = {
-        receiver: receiver, 
-        amount: amount.toNumber(), 
-        token: targetToken,
-    };
-        
-    const data = {
-        types: {
-            EIP712Domain,
-            allowance
+const getValidatorAllowanceSignature = async (receiverAddress: string, amount: BigNumber, targetToken: string, bridgeContractAddress: string, provider: StaticJsonRpcProvider) => {
+    const chainId: number = parseInt(await provider.send("eth_chainId", []));
+    return await validatorSourceChainWallet._signTypedData(
+        {
+          name: BridgeABI.contractName,
+          version: '1',
+          chainId: chainId,
+          verifyingContract: bridgeContractAddress
         },
-        domain,
-        primaryType: 'allowance',
-        message
-    }
-    
-    const signatureLike = await targetChainProvider.send('eth_signTypedData_v4', [validator.address, data]); 
-
-    return signatureLike;
+        {
+            Allowance: [
+              { name: 'receiver', type: 'address' },
+              { name: 'amount', type: 'uint256' },
+              { name: 'token', type: 'address' }
+            ],
+        },
+        {
+          receiver: receiverAddress, 
+          amount: amount, 
+          token: targetToken,
+        });
 }
 
 const lookupTargetTokenAddress = async (sourceToken: string, targetChainId: number) => {

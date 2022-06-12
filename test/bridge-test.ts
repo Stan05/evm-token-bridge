@@ -175,7 +175,7 @@ const getValidatorMintSignature = async (validator: Wallet, receiverAddress: str
       verifyingContract: bridgeAddress
     },
     {
-        mint: [
+        Allowance: [
           { name: 'receiver', type: 'address' },
           { name: 'amount', type: 'uint256' },
           { name: 'token', type: 'address' }

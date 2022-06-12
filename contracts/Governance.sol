@@ -89,7 +89,7 @@ contract Governance is Ownable {
                 keccak256(
                     abi.encode(
                         keccak256(
-                            "mint(address receiver,uint256 amount,address token)"
+                            "Allowance(address receiver,uint256 amount,address token)"
                         ),
                         _receiver,
                         _amount,
