@@ -26,11 +26,11 @@ task("deploy-token", "Deploys token on localhost")
 /**
  * Interactions Tasks
  */
-task("bridge-localhost", "Interact with bridge on localhost")
+task("lock-localhost", "Interact with bridge on localhost locking a token")
   .addParam("tokenContract", "The token conrtact address")
   .addParam("bridgeContract", "The bridge conrtact address")
   .setAction(async (args, hre, runSuper) => {
-    const bridge = require("./scripts/interactions/bridge");
+    const bridge = require("./scripts/interactions/lock");
     await bridge(args.tokenContract, args.bridgeContract);
   });
 
