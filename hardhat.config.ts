@@ -7,7 +7,7 @@ import 'solidity-coverage';
 /**
  * Deployments Tasks
  */
-task("deploy-localhost", "Deploys the bridge on localhost")
+task("deploy-bridge", "Deploys the bridge on localhost")
   .setAction(async (args, hre) => {
     await hre.run('compile');
     const deployBridge = require("./scripts/deployments/deploy-bridge");
@@ -19,7 +19,7 @@ task("deploy-token", "Deploys token on localhost")
   .addParam("symbol", "The token symbol")
   .addOptionalParam("bridgeAddress", "The bridge to be granted minter role")
   .setAction(async ({name, symbol}) => {
-     const deployToken = require("./scripts/deployments/deploy-token");
+    const deployToken = require("./scripts/deployments/deploy-token");
     return await deployToken(name, symbol);
 });
 

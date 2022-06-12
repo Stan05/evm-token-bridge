@@ -42,10 +42,11 @@ async function getSignature(userAddress: string, spender: string, tokenContract:
         { name: 'verifyingContract', type: 'address' }
     ];
 
+    const chainId: number = parseInt(await provider.send("eth_chainId", []));
     const domain = {
         name: await tokenContract.name(),
         version: '1',
-        chainId: 31337,
+        chainId: chainId,
         verifyingContract: tokenContract.address
     };
   

@@ -6,7 +6,7 @@ import "./Governance.sol";
 import "./Registry.sol";
 import "./TokenFactory.sol";
 
-contract Bridge is Governance, Registry, TokenFactory {
+contract Bridge is Governance, TokenFactory {
     event Lock(
         address indexed from,
         uint16 indexed targetChainId,
@@ -15,6 +15,13 @@ contract Bridge is Governance, Registry, TokenFactory {
     );
 
     event Mint(address indexed receiver, address token, uint amount);
+
+    event Burn(
+        address indexed from,
+        uint16 indexed targetChainId,
+        address wrappedToken,
+        uint amount
+    );
 
     constructor(address[] memory _validators)
         Governance("Bridge", _validators)
@@ -54,22 +61,58 @@ contract Bridge is Governance, Registry, TokenFactory {
     function mint(
         address _receiver,
         uint256 _amount,
-        address payable _token,
+        address payable _wrappedToken,
         bytes[] calldata _validatorsSignatures
     ) external {
-        _validateSignatures(_receiver, _amount, _token, _validatorsSignatures);
+        _validateSignatures(
+            _receiver,
+            _amount,
+            _wrappedToken,
+            _validatorsSignatures
+        );
 
-        ERC20Token tokenContract = lookupTokenContract(_token);
-        require(address(tokenContract) != address(0), "Token is not existing");
-        tokenContract.mint(_receiver, _amount);
+        ERC20Token wrappedTokenContract = lookupTokenContract(_wrappedToken);
+        require(
+            address(wrappedTokenContract) != address(0),
+            "Wrapped Token is not existing"
+        );
+        wrappedTokenContract.mint(_receiver, _amount);
 
-        emit Mint(_receiver, _token, _amount);
+        emit Mint(_receiver, _wrappedToken, _amount);
     }
 
     /**
      * @notice burns wrapped erc20 tokens
      */
-    function burn() external {}
+    function burn(
+        uint16 _targetChainId,
+        address _wrappedToken,
+        uint256 _amount,
+        uint256 _deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
+        require(_amount > 0, "Burnt amount is required.");
+
+        ERC20Token wrappedTokenContract = lookupTokenContract(_wrappedToken);
+        require(
+            address(wrappedTokenContract) != address(0),
+            "Wrapped Token is not existing"
+        );
+        wrappedTokenContract.permit(
+            msg.sender,
+            address(this),
+            _amount,
+            _deadline,
+            v,
+            r,
+            s
+        );
+        wrappedTokenContract.burnFrom(msg.sender, _amount);
+
+        emit Burn(msg.sender, _targetChainId, _wrappedToken, _amount);
+    }
 
     /**
      * @notice releases locked erc20 tokens
