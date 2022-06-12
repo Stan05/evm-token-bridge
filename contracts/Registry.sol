@@ -4,14 +4,22 @@ pragma solidity >=0.8.4;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Registry is Ownable {
+    uint16 private sourceChainId;
     mapping(address => mapping(uint16 => address))
         private sourceTokenToTargetToken;
+    mapping(address => mapping(uint16 => address))
+        private targetTokenToSourceToken;
 
-    event TargetTokenRegistered(
+    event TokenConnectionRegistered(
         address indexed sourceToken,
-        uint16 indexed targetChainId,
-        address targetToken
+        address indexed targetToken,
+        uint16 sourceChainId,
+        uint16 targetChainId
     );
+
+    constructor() {
+        sourceChainId = uint16(block.chainid);
+    }
 
     /**
      * @notice lookup by source token and target chain id the corresponding token address
@@ -24,22 +32,34 @@ contract Registry is Ownable {
     }
 
     /**
-     * @notice registers a target token address for the given source token and target chain id
+     * @notice lookup by target token and source chain id the corresponding source token address
+     */
+    function lookupSourceTokenAddress(
+        address _targetToken,
+        uint16 _sourceChainId
+    ) external view returns (address) {
+        return targetTokenToSourceToken[_targetToken][_sourceChainId];
+    }
+
+    /**
+     * @notice registers a token connection between the source and target oken addreses
      */
     function registerTargetTokenAddress(
         address _sourceToken,
         uint16 _targetChainId,
-        address _targetTokenAddress
+        address _targetToken
     ) external onlyOwner {
         require(_sourceToken != address(0), "Invalid source address");
-        require(_targetTokenAddress != address(0), "Invalid target address");
-        sourceTokenToTargetToken[_sourceToken][
-            _targetChainId
-        ] = _targetTokenAddress;
-        emit TargetTokenRegistered(
+        require(_targetToken != address(0), "Invalid target address");
+
+        sourceTokenToTargetToken[_sourceToken][_targetChainId] = _targetToken;
+        targetTokenToSourceToken[_targetToken][sourceChainId] = _sourceToken;
+
+        emit TokenConnectionRegistered(
             _sourceToken,
-            _targetChainId,
-            _targetTokenAddress
+            _targetToken,
+            sourceChainId,
+            _targetChainId
         );
     }
 }
