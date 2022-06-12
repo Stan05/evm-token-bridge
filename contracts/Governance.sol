@@ -8,6 +8,10 @@ contract Governance is Ownable {
     bytes32 private DOMAIN_SEPARATOR;
     mapping(address => bool) private registeredValidators;
 
+    event ValidatorsInitialized(address[] indexed validators);
+    event ValidatorRegistered(address indexed validator);
+    event ValidatorUnRegistered(address indexed validator);
+
     constructor(string memory _name, address[] memory _validators) {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
@@ -23,6 +27,9 @@ contract Governance is Ownable {
         for (uint i = 0; i < _validators.length; i++) {
             registeredValidators[_validators[i]] = true;
         }
+        if (_validators.length > 0) {
+            emit ValidatorsInitialized(_validators);
+        }
     }
 
     /**
@@ -30,6 +37,7 @@ contract Governance is Ownable {
      */
     function registerValidator(address _validator) external onlyOwner {
         registeredValidators[_validator] = true;
+        emit ValidatorRegistered(_validator);
     }
 
     /**
@@ -37,6 +45,7 @@ contract Governance is Ownable {
      */
     function unRegisterValidator(address _validator) external onlyOwner {
         registeredValidators[_validator] = false;
+        emit ValidatorUnRegistered(_validator);
     }
 
     /**

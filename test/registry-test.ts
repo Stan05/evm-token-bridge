@@ -17,8 +17,10 @@ describe("Registry", function () {
     const sourceToken: string = await accounts[0].getAddress();
     const targetChainId: number = 2;
     const targetToken: string = await accounts[1].getAddress();
+    
     await expect(registry.registerTargetTokenAddress(sourceToken, targetChainId, targetToken))
-        .to.emit(registry, 'TargetTokenRegistered');
+        .to.emit(registry, 'TargetTokenRegistered')
+        .withArgs(sourceToken, targetChainId, targetToken);
     expect(await registry.lookupTargetTokenAddress(sourceToken, targetChainId))
         .to.equal(targetToken);
   });
@@ -27,6 +29,7 @@ describe("Registry", function () {
     const sourceToken: string = ethers.constants.AddressZero;
     const targetChainId: number = 2;
     const targetToken: string = await accounts[1].getAddress();
+
     await expect(registry.registerTargetTokenAddress(sourceToken, targetChainId, targetToken))
         .to.be.revertedWith('Invalid source address');
   })
@@ -35,6 +38,7 @@ describe("Registry", function () {
     const sourceToken: string = await accounts[0].getAddress();
     const targetChainId: number = 2;
     const targetToken: string = ethers.constants.AddressZero;
+
     await expect(registry.registerTargetTokenAddress(sourceToken, targetChainId, targetToken))
         .to.be.revertedWith('Invalid target address');
   })

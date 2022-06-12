@@ -21,27 +21,36 @@ describe("Governance", function () {
     accounts = await ethers.getSigners();
     governance = await governanceFactory.deploy("ContractName", [validator.getAddress(), validator2.getAddress()]);
     await governance.deployed();
-
+    
     expect(await governance.hasAccess(validator.getAddress())).to.be.true;
     expect(await governance.hasAccess(validator2.getAddress())).to.be.true;
   });
 
   it("Should register validator", async function () {
-    const validator: Signer = accounts[3];
-    const randomUser: Signer = accounts[4];
-    governance.registerValidator(validator.getAddress());
+    const validatorAddress: string = await accounts[3].getAddress();
+    const randomUserAddress: string = await accounts[4].getAddress();
 
-    expect(await governance.hasAccess(validator.getAddress())).to.be.true;
-    expect(await governance.hasAccess(randomUser.getAddress())).to.be.false;
+    await expect(governance.registerValidator(validatorAddress))
+      .to.emit(governance, 'ValidatorRegistered')
+      .withArgs(validatorAddress);
+
+    expect(await governance.hasAccess(validatorAddress)).to.be.true;
+    expect(await governance.hasAccess(randomUserAddress)).to.be.false;
   });
   
   it("Should unregister validator", async function () {
-    const validator: Signer = accounts[5];
-   
-    governance.registerValidator(validator.getAddress());
-    expect(await governance.hasAccess(validator.getAddress())).to.be.true;
+    const validatorAddress: string = await accounts[5].getAddress();
+
+    await expect(governance.registerValidator(validatorAddress))
+      .to.emit(governance, 'ValidatorRegistered')
+      .withArgs(validatorAddress);
+    expect(await governance.hasAccess(validatorAddress))
+      .to.be.true;
     
-    governance.unRegisterValidator(validator.getAddress());
-    expect(await governance.hasAccess(validator.getAddress())).to.be.false;
+    await expect(governance.unRegisterValidator(validatorAddress))
+      .to.emit(governance, 'ValidatorUnRegistered')
+      .withArgs(validatorAddress);
+    expect(await governance.hasAccess(validatorAddress))
+      .to.be.false;
   });
 });

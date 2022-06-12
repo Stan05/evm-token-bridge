@@ -14,12 +14,7 @@ contract Bridge is Governance, Registry, TokenFactory {
         uint amount
     );
 
-    event Mint(
-        address indexed receiver,
-        address validator,
-        address token,
-        uint amount
-    );
+    event Mint(address indexed receiver, address token, uint amount);
 
     constructor(address[] memory _validators)
         Governance("Bridge", _validators)
@@ -68,7 +63,7 @@ contract Bridge is Governance, Registry, TokenFactory {
         require(address(tokenContract) != address(0), "Token is not existing");
         tokenContract.mint(_receiver, _amount);
 
-        emit Mint(_receiver, msg.sender, _token, _amount);
+        emit Mint(_receiver, _token, _amount);
     }
 
     /**

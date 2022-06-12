@@ -19,13 +19,16 @@ describe("TokenFactory", function () {
     const receipt = await createTokenTx.wait();
 
     const address: string = ethers.utils.hexStripZeros(receipt.events.filter((e: { event: string; }) => e.event == "TokenCreated")[0].topics[1]);
-    expect(await tokenFactoryContract.lookupTokenContract(address)).to.be.properAddress;
+
+    expect(await tokenFactoryContract.lookupTokenContract(address))
+      .to.be.properAddress;
   });
   
   it('Should return zero address when token is not created from factory',async () => {
     const tokenFactory: ContractFactory = await ethers.getContractFactory("ERC20Token");
     const regularERC20 = await tokenFactory.deploy("Token", "TKN");
 
-    expect(await tokenFactoryContract.lookupTokenContract(regularERC20.address)).to.equal(ethers.constants.AddressZero);
+    expect(await tokenFactoryContract.lookupTokenContract(regularERC20.address))
+      .to.equal(ethers.constants.AddressZero);
   })
 });

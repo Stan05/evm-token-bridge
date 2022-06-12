@@ -31,7 +31,7 @@ async function main() {
             sourceBridgeContract.Lock // filter by target chain id as well, one validator will be running for conection between networks
         ]
     }
-
+    
     sourceChainProvider.on(sourceBridgeContract.filters.Lock(), handleLockEvent);
     targetChainProvider.on(targetBridgeContract.filters.Mint(), handleMintEvent);
 }
@@ -39,9 +39,9 @@ async function main() {
 const handleMintEvent = async (event: { topics: any[]; data: any; blockNumber: any; }) => {
     console.log('--------------Mint Event--------------');
     const receiver = ethers.utils.hexStripZeros(event.topics[1]);
-    const decodedData = ethers.utils.defaultAbiCoder.decode(['address', 'address', 'uint256'], event.data);
-    const mintToken = decodedData[1];
-    const mintAmount = decodedData[2];
+    const decodedData = ethers.utils.defaultAbiCoder.decode(['address', 'uint256'], event.data);
+    const mintToken = decodedData[0];
+    const mintAmount = decodedData[1];
     console.log('Block Number :', event.blockNumber);
     console.log('Receiver : ', receiver);
     console.log('Mint Token : ', mintToken);

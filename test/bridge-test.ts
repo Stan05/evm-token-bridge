@@ -14,7 +14,7 @@ describe("Bridge", function () {
     accounts = await ethers.getSigners();
     validator = ethers.Wallet.createRandom();
     validator2 = ethers.Wallet.createRandom();
-
+    
     const bridgeFactory: ContractFactory = await ethers.getContractFactory("Bridge");
     bridge = await bridgeFactory.deploy([validator.address, validator2.address]);
     await bridge.deployed();
@@ -74,7 +74,8 @@ describe("Bridge", function () {
       const sig = await getValidatorMintSignature(validator, receiverAddress, amount, tokenAddress, bridge.address);
       signatures.push(sig);
           
-      expect(await bridge.hasAccess(await validator.getAddress())).to.be.true;
+      expect(await bridge.hasAccess(await validator.getAddress()))
+        .to.be.true;
       await expect(() => bridge.connect(user).mint(receiverAddress, amount, tokenAddress, signatures))
         .to.changeTokenBalance(bridgeToken, user, amount);
     });
