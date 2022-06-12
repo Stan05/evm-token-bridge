@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract Governance is Ownable {
     bytes32 private DOMAIN_SEPARATOR;
-    mapping(address => bool) registeredValidators;
+    mapping(address => bool) private registeredValidators;
 
-    constructor(string memory _name) {
+    constructor(string memory _name, address[] memory _validators) {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256(
@@ -20,6 +20,9 @@ contract Governance is Ownable {
                 address(this)
             )
         );
+        for (uint i = 0; i < _validators.length; i++) {
+            registeredValidators[_validators[i]] = true;
+        }
     }
 
     /**

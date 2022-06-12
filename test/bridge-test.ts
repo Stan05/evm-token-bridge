@@ -7,10 +7,16 @@ describe("Bridge", function () {
   let accounts: Signer[];
   let bridge: Contract;
   let bridgeToken: Contract;
+  let validator: Wallet;
+  let validator2: Wallet;
 
-  beforeEach(async function () {
+  before(async function () {
+    accounts = await ethers.getSigners();
+    validator = ethers.Wallet.createRandom();
+    validator2 = ethers.Wallet.createRandom();
+
     const bridgeFactory: ContractFactory = await ethers.getContractFactory("Bridge");
-    bridge = await bridgeFactory.deploy();
+    bridge = await bridgeFactory.deploy([validator.address, validator2.address]);
     await bridge.deployed();
 
     const createTokenTx = (await bridge.createToken("BridgeToken", "bTKN"));
@@ -18,22 +24,33 @@ describe("Bridge", function () {
     const tokenAddress: string = ethers.utils.hexStripZeros(receipt.events.filter((e: { event: string; }) => e.event == "TokenCreated")[0].topics[1]);
     
     bridgeToken = await ethers.getContractAtFromArtifact(ERC20TokenABI, tokenAddress);
-
-    accounts = await ethers.getSigners();
   });
 
   describe('Lock', function () {
     it('Should not allow transfer 0 amount',async () => {
-      
-    });
-
-    it('Should transfer token with permit', async () => {
       let user: Wallet = ethers.Wallet.createRandom();
       const tokenFactory: ContractFactory = await ethers.getContractFactory("ERC20Token");
       const regularToken = await tokenFactory.deploy("Token", "TKN");
       await regularToken.deployed();
 
-      const targetChainId: number = 2;
+      const targetChainId: number = 1337;
+      const tokenAddress: string = regularToken.address;
+      const amount: number = 0;
+      await regularToken.mint(await user.getAddress(), amount);
+      const signature = await getUserPermit(user, regularToken, bridge.address, amount);
+      
+      await expect(bridge.lock(targetChainId, tokenAddress, amount, signature.deadline, signature.v, signature.r, signature.s))
+          .to.be.revertedWith('Bridged amount is required.');
+    });
+
+    it('Should transfer token with permit', async () => {
+      let user: Wallet = ethers.Wallet.createRandom();
+      user = user.connect(ethers.getDefaultProvider());
+      const tokenFactory: ContractFactory = await ethers.getContractFactory("ERC20Token");
+      const regularToken = await tokenFactory.deploy("Token", "TKN");
+      await regularToken.deployed();
+
+      const targetChainId: number = 1337;
       const tokenAddress: string = regularToken.address;
       const amount: number = 10;
       await regularToken.mint(await user.getAddress(), amount);
@@ -42,8 +59,6 @@ describe("Bridge", function () {
       await bridge
           .connect(user)
           .lock(targetChainId, tokenAddress, amount, signature.deadline, signature.v, signature.r, signature.s);
-      expect(await regularToken.balanceOf(bridge.address)).to.equal(amount);
-      expect(await regularToken.balanceOf(await user.getAddress())).to.equal(0);
     });
   });
 
@@ -51,8 +66,6 @@ describe("Bridge", function () {
     
     it("Should allow mint with one registered validator", async function () {      
       const user: Signer = accounts[1];
-      const validator = ethers.Wallet.createRandom();
-      await bridge.registerValidator(await validator.getAddress());
 
       const receiverAddress: string = await user.getAddress();
       const amount: number = 10;
@@ -68,10 +81,6 @@ describe("Bridge", function () {
   
     it("Should allow mint with more than one validators registered", async function () {      
       const user: Signer = accounts[1];
-      const validator = ethers.Wallet.createRandom();
-      const validator2 = ethers.Wallet.createRandom();
-      await bridge.registerValidator(await validator.getAddress());
-      await bridge.registerValidator(await validator2.getAddress());
 
       const receiverAddress: string = await user.getAddress();
       const amount: number = 10;
@@ -88,7 +97,24 @@ describe("Bridge", function () {
   
     it("Should not allow mint when validator is not registered", async function () {    
       const user: Signer = accounts[1];
-      const validator = ethers.Wallet.createRandom();
+      const unregisteredValidator = ethers.Wallet.createRandom();
+  
+      const receiverAddress: string = await user.getAddress();
+      const amount: number = 10;
+      const token: string = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+      const signatures: string[] = [];
+      const sig = await getValidatorMintSignature(unregisteredValidator, receiverAddress, amount, token, bridge.address);
+      signatures.push(sig);
+      
+      await expect(bridge.connect(user).mint(receiverAddress, amount, token, signatures)).to.be.revertedWith('Unrecognized validator signature');
+    });
+
+    it('Should not allow mint of token created outside of the factory',async () => {
+      const tokenFactory: ContractFactory = await ethers.getContractFactory("ERC20Token");
+      const regularToken = await tokenFactory.deploy("Token", "TKN");
+      await regularToken.deployed();   
+
+      const user: Signer = accounts[1];
   
       const receiverAddress: string = await user.getAddress();
       const amount: number = 10;
@@ -97,18 +123,20 @@ describe("Bridge", function () {
       const sig = await getValidatorMintSignature(validator, receiverAddress, amount, token, bridge.address);
       signatures.push(sig);
       
-      await expect(bridge.connect(user).mint(receiverAddress, amount, token, signatures)).to.be.revertedWith('Unrecognized validator signature');
-    });
+      await expect(bridge.connect(user).mint(receiverAddress, amount, token, signatures)).to.be.revertedWith('Token is not existing');
+    })
   });
 });
 
 const getUserPermit = async (user: Wallet, token: Contract, spender: string, amount: number) => {
   const nonce = await token.nonces(user.address);
   const deadline: number = + new Date() + 60 * 60; 
+  
   const signature = await user._signTypedData(
     {
       name: await token.name(),
       version: '1',
+      chainId: 31337,
       verifyingContract: token.address
     },
     {
@@ -124,11 +152,10 @@ const getUserPermit = async (user: Wallet, token: Contract, spender: string, amo
       owner: user.address, 
       spender: spender, 
       value: amount,
-      nonce: nonce.toHexString(),
-      deadline
+      nonce: nonce,
+      deadline: deadline
     });
     const splitSignature = ethers.utils.splitSignature(signature);
-    
     const preparedSignature = {
         v: splitSignature.v,
         r: splitSignature.r,

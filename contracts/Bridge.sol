@@ -21,7 +21,9 @@ contract Bridge is Governance, Registry, TokenFactory {
         uint amount
     );
 
-    constructor() Governance("Bridge") {}
+    constructor(address[] memory _validators)
+        Governance("Bridge", _validators)
+    {}
 
     /**
      * @notice locks the non-native erc20 tokens
