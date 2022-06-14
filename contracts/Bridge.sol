@@ -6,7 +6,10 @@ import "./Governance.sol";
 import "./Registry.sol";
 import "./TokenFactory.sol";
 
-contract Bridge is Governance, TokenFactory {
+contract Bridge {
+    Governance public governance;
+    TokenFactory public tokenFactory;
+
     event Lock(
         address indexed from,
         uint16 indexed targetChainId,
@@ -25,9 +28,10 @@ contract Bridge is Governance, TokenFactory {
 
     event Release(address indexed receiver, address token, uint amount);
 
-    constructor(address[] memory _validators)
-        Governance("Bridge", _validators)
-    {}
+    constructor(address[] memory _validators) {
+        governance = new Governance("Bridge", _validators);
+        tokenFactory = new TokenFactory();
+    }
 
     /**
      * @notice locks the non-native erc20 tokens
@@ -66,14 +70,16 @@ contract Bridge is Governance, TokenFactory {
         address payable _wrappedToken,
         bytes[] calldata _validatorsSignatures
     ) external {
-        _validateSignatures(
+        governance._validateAllowanceSignatures(
             _receiver,
             _amount,
             _wrappedToken,
             _validatorsSignatures
         );
 
-        ERC20Token wrappedTokenContract = lookupTokenContract(_wrappedToken);
+        ERC20Token wrappedTokenContract = tokenFactory.lookupTokenContract(
+            _wrappedToken
+        );
         require(
             address(wrappedTokenContract) != address(0),
             "Wrapped Token is not existing"
@@ -97,7 +103,9 @@ contract Bridge is Governance, TokenFactory {
     ) external {
         require(_amount > 0, "Burnt amount is required.");
 
-        ERC20Token wrappedTokenContract = lookupTokenContract(_wrappedToken);
+        ERC20Token wrappedTokenContract = tokenFactory.lookupTokenContract(
+            _wrappedToken
+        );
         require(
             address(wrappedTokenContract) != address(0),
             "Wrapped Token is not existing"
@@ -125,10 +133,30 @@ contract Bridge is Governance, TokenFactory {
         address payable _token,
         bytes[] calldata _validatorsSignatures
     ) external {
-        _validateSignatures(_receiver, _amount, _token, _validatorsSignatures);
+        governance._validateAllowanceSignatures(
+            _receiver,
+            _amount,
+            _token,
+            _validatorsSignatures
+        );
 
         ERC20Token(_token).transfer(msg.sender, _amount);
 
         emit Release(msg.sender, _token, _amount);
+    }
+
+    function createToken(
+        string calldata _name,
+        string calldata _symbol,
+        bytes[] calldata _validatorsSignatures
+    ) external {
+        governance._validateTokenCreationSignatures(
+            msg.sender,
+            _name,
+            _symbol,
+            _validatorsSignatures
+        );
+
+        tokenFactory.createToken(_name, _symbol);
     }
 }

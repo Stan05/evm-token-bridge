@@ -21,7 +21,7 @@ contract Governance is Ownable {
                 keccak256(bytes(_name)),
                 keccak256(bytes("1")),
                 block.chainid,
-                address(this)
+                msg.sender
             )
         );
         for (uint i = 0; i < _validators.length; i++) {
@@ -55,15 +55,15 @@ contract Governance is Ownable {
         return registeredValidators[_validator];
     }
 
-    function _validateSignatures(
+    function _validateAllowanceSignatures(
         address _receiver,
         uint256 _amount,
         address payable _token,
         bytes[] memory _validatorsSignatures
-    ) internal view {
+    ) external view {
         for (uint i = 0; i < _validatorsSignatures.length; i++) {
             bytes memory sig = _validatorsSignatures[i];
-            address _validatorAddress = _recover(
+            address _validatorAddress = _recoverFromAllowance(
                 _receiver,
                 _amount,
                 _token,
@@ -76,11 +76,32 @@ contract Governance is Ownable {
         }
     }
 
-    function _recover(
+    function _validateTokenCreationSignatures(
+        address _from,
+        string memory _tokenName,
+        string memory _tokenSymbol,
+        bytes[] memory _validatorsSignatures
+    ) external view {
+        for (uint i = 0; i < _validatorsSignatures.length; i++) {
+            bytes memory sig = _validatorsSignatures[i];
+            address _validatorAddress = _recoverFromTokenCreation(
+                _from,
+                _tokenName,
+                _tokenSymbol,
+                sig
+            );
+            require(
+                registeredValidators[_validatorAddress],
+                "Unrecognized validator signature"
+            );
+        }
+    }
+
+    function _recoverFromAllowance(
         address _receiver,
         uint256 _amount,
         address payable _token,
-        bytes memory _validatorsSignature
+        bytes memory _validatorSignature
     ) private view returns (address) {
         bytes32 digest = keccak256(
             abi.encodePacked(
@@ -99,6 +120,32 @@ contract Governance is Ownable {
             )
         );
 
-        return ECDSA.recover(digest, _validatorsSignature);
+        return ECDSA.recover(digest, _validatorSignature);
+    }
+
+    function _recoverFromTokenCreation(
+        address _from,
+        string memory _tokenName,
+        string memory _tokenSymbol,
+        bytes memory _validatorSignature
+    ) private view returns (address) {
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "TokenCreation(address from,string name,string symbol)"
+                        ),
+                        _from,
+                        keccak256(bytes(_tokenName)),
+                        keccak256(bytes(_tokenSymbol))
+                    )
+                )
+            )
+        );
+
+        return ECDSA.recover(digest, _validatorSignature);
     }
 }

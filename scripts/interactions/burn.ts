@@ -19,7 +19,6 @@ async function main() {
     
     const targetChainId: number = 31337;
     const amount: number = 10;
-    const deadline: number = + new Date() + 60 * 60; 
     
     console.log('Burning %d of token %s from user address %s', amount, targetTokenContract.address, userWallet.address);
   

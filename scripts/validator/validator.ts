@@ -5,7 +5,9 @@ import hre from 'hardhat';
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
 import RegistryABI from '../../artifacts/contracts/Registry.sol/Registry.json';
 import ERC20ABI from '../../artifacts/contracts/ERC20Token.sol/ERC20Token.json';
+import TokenFactoryABI from '../../artifacts/contracts/TokenFactory.sol/TokenFactory.json';
 import { StaticJsonRpcProvider } from '@ethersproject/providers';
+import { getValidatorAllowanceSignature, getValidatorTokenCreationSignature } from '../helper/validator-functions';
 
 const sourceBridgeContractAddress: string = process.env.SOURCE_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
 const targetBridgeContractAddress: string = process.env.TARGET_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
@@ -40,9 +42,9 @@ async function main() {
         ]
     }
     
-    //sourceChainProvider.on(sourceBridgeContract.filters.Lock(), handleLockEvent);
+    sourceChainProvider.on(sourceBridgeContract.filters.Lock(), handleLockEvent);
     sourceChainProvider.on(sourceBridgeContract.filters.Release(), handleReleaseEvent);
-    //targetChainProvider.on(targetBridgeContract.filters.Mint(), handleMintEvent);
+    targetChainProvider.on(targetBridgeContract.filters.Mint(), handleMintEvent);
     targetChainProvider.on(targetBridgeContract.filters.Burn(), handleBurnEvent);
 }
 
@@ -75,8 +77,10 @@ const handleLockEvent = async (event: { data: any; topics: string[]; blockNumber
     console.log('Locked Token : ', lockedToken);
     console.log('Locked Amount : ', lockedAmount.toString());
 
-    const targetToken: string = await lookupTargetTokenAddress(lockedToken, targetChainId);
-    console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(from, lockedAmount, targetToken, targetBridgeContract, targetChainProvider));
+    const targetToken: string = await lookupTargetTokenAddress(from, lockedToken, targetChainId);
+    if (targetToken !== ethers.constants.AddressZero) {
+        console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(validatorTargetChainWallet, targetChainProvider, from, lockedAmount, targetToken, targetBridgeContract.address));
+    }
 }
 
 const handleBurnEvent = async (event: { data: BytesLike; topics: string[]; blockNumber: any; }) => {
@@ -94,11 +98,23 @@ const handleBurnEvent = async (event: { data: BytesLike; topics: string[]; block
 
     const sourceToken: string = await lookupSourceTokenAddress(burnToken, targetChainId);
     console.log(sourceToken);
-    console.log("Validators\'s signature %s", await getValidatorAllowanceSignature(from, burnAmount, sourceToken, sourceBridgeContractAddress, sourceChainProvider));
+    console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(validatorSourceChainWallet, sourceChainProvider, from, burnAmount, sourceToken, sourceBridgeContractAddress));
 }
 
 const handleReleaseEvent = async (event: any) => {
-    console.log(event);
+    console.log('--------------Release Event--------------');
+    const receiver = ethers.utils.hexStripZeros(event.topics[1]);
+    const decodedData = ethers.utils.defaultAbiCoder.decode(['address', 'uint256'], event.data);
+    const releasedToken = decodedData[0];
+    const releasedAmount = decodedData[1];
+    console.log('Block Number :', event.blockNumber);
+    console.log('Receiver : ', receiver);
+    console.log('Released Token : ', releasedToken);
+    console.log('Released Amount : ', releasedAmount.toString());
+    const releasedTokenContract = new hre.ethers.Contract(releasedToken, ERC20ABI.abi, sourceChainProvider);
+    const tokenName = await releasedTokenContract.name();
+    const newBalance = (await releasedTokenContract.balanceOf(receiver)).toString();
+    console.log('User\'s %s balance %d of \'%s\' token.\n', receiver, newBalance, tokenName);
 }
 
 const deployBridgeTokenOnTargetChain = async (sourceToken: string) => {
@@ -115,85 +131,27 @@ const deployBridgeTokenOnTargetChain = async (sourceToken: string) => {
     return bridgeTokenAddress;
 }
 
-const getValidatorMintSignature = async (receiver: string, amount: BigNumber, targetToken: string) => {
-    
-    const EIP712Domain = [ 
-        { name: 'name', type: 'string' },
-        { name: 'version', type: 'string' },
-        { name: 'chainId', type: 'uint256'},
-        { name: 'verifyingContract', type: 'address' }
-    ];
-    
-    const chainId: number = parseInt(await targetChainProvider.send("eth_chainId", []));
-    const domain = {
-        name: BridgeABI.contractName,
-        version: '1',
-        chainId: chainId,
-        verifyingContract: targetBridgeContract.address
-    };
-    
-    const Allowance = [ 
-        { name: 'receiver', type: 'address' },
-        { name: 'amount', type: 'uint256' },
-        { name: 'token', type: 'address' },
-    ];
-
-    const message = {
-        receiver: receiver, 
-        amount: amount.toNumber(), 
-        token: targetToken,
-    };
-        
-    const data = {
-        types: {
-            EIP712Domain,
-            Allowance
-        },
-        domain,
-        primaryType: 'Allowance',
-        message
-    }
-    
-    const signatureLike = await targetChainProvider.send('eth_signTypedData_v4', [validatorTargetChainWallet.address, data]); 
-
-    return signatureLike;
-}
-
-const getValidatorAllowanceSignature = async (receiverAddress: string, amount: BigNumber, targetToken: string, bridgeContractAddress: string, provider: StaticJsonRpcProvider) => {
-    const chainId: number = parseInt(await provider.send("eth_chainId", []));
-    return await validatorSourceChainWallet._signTypedData(
-        {
-          name: BridgeABI.contractName,
-          version: '1',
-          chainId: chainId,
-          verifyingContract: bridgeContractAddress
-        },
-        {
-            Allowance: [
-              { name: 'receiver', type: 'address' },
-              { name: 'amount', type: 'uint256' },
-              { name: 'token', type: 'address' }
-            ],
-        },
-        {
-          receiver: receiverAddress, 
-          amount: amount, 
-          token: targetToken,
-        });
-}
-
-const lookupTargetTokenAddress = async (sourceToken: string, targetChainId: number) => {
+const lookupTargetTokenAddress = async (userAddress: string, sourceToken: string, targetChainId: number): Promise<string> => {
     let targetTokenAddress = await sourceRegistryContract.lookupTargetTokenAddress(sourceToken, targetChainId);
-    if (targetTokenAddress == undefined || targetTokenAddress == ethers.constants.AddressZero) {
+    /*if (targetTokenAddress == undefined || targetTokenAddress == ethers.constants.AddressZero) {
         console.log('\nDoesn\'t have corresponding wrapped token, deploying one');
         targetTokenAddress = await deployBridgeTokenOnTargetChain(sourceToken);
         await sourceRegistryContract.connect(sourceDeployer).registerTargetTokenAddress(sourceToken, targetChainId, targetTokenAddress);
-    }
+    }*/
+    if (targetTokenAddress === undefined || targetTokenAddress == ethers.constants.AddressZero) {
+        const sourceTokenContract = new hre.ethers.Contract(sourceToken, ERC20ABI.abi, sourceChainProvider);
+        const wrappedTokenName = "Bridge" + (await sourceTokenContract.name());
+        const wrappedTokenSymbol = "b" + (await sourceTokenContract.symbol());
+        const tokenCreationgSignature: string = await getValidatorTokenCreationSignature(validatorTargetChainWallet, targetChainProvider, targetBridgeContractAddress, userAddress, wrappedTokenName, wrappedTokenSymbol);
+        console.log("Target Wrapped Token with name '%s', symbol '%s' and signature '%s' should be first created",
+                    wrappedTokenName, wrappedTokenSymbol, tokenCreationgSignature );
+        return ethers.constants.AddressZero;
+    } 
     return targetTokenAddress;
 }
 
 const lookupSourceTokenAddress = async (targetToken:string, targetChainId: number): Promise<string> => {
-    return await sourceRegistryContract.lookupSourceTokenAddress(targetToken, targetChainId);
+    return await sourceBridgeContract.tokenFactory().lookupSourceTokenAddress(targetToken, targetChainId);
 }
 
 main();
