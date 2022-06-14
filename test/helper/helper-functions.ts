@@ -1,5 +1,4 @@
-import { BigNumber, Wallet, Contract, ethers } from "ethers";
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { Wallet, Contract, ethers } from "ethers";
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
 
 const getUserPermit = async (user: Wallet, token: Contract, spender: string, amount: number, chainId: number) => {

@@ -1,16 +1,19 @@
 import { ethers } from "hardhat";
-import { Contract, ContractFactory, Signer } from "ethers";
+import { Contract, ContractFactory, Signer, Wallet } from "ethers";
 import { expect } from "chai";
+import { deployContract, MockProvider } from "ethereum-waffle";
+import TokenContracFactoryABI from "../artifacts/contracts/TokenFactory.sol/TokenFactory.json";
 
 describe("TokenFactory", function () {
-  let accounts: Signer[];
+  let provider: MockProvider;
+  let deployer: Wallet;
+  let user: Wallet;
   let tokenFactoryContract: Contract;
 
   beforeEach(async function () {
-    const tokenFactory: ContractFactory = await ethers.getContractFactory("TokenFactory");
-    accounts = await ethers.getSigners();
-    tokenFactoryContract = await tokenFactory.deploy();
-    await tokenFactoryContract.deployed();
+    provider = new MockProvider();
+    [deployer, user] = provider.getWallets();  
+    tokenFactoryContract = await deployContract(deployer, TokenContracFactoryABI, []); 
   });
 
   
@@ -26,7 +29,7 @@ describe("TokenFactory", function () {
   
   it('Should return zero address when token is not created from factory',async () => {
     const tokenFactory: ContractFactory = await ethers.getContractFactory("ERC20Token");
-    const regularERC20 = await tokenFactory.deploy("Token", "TKN");
+    const regularERC20 = await tokenFactory.deploy("Token", "TKN", deployer.address);
 
     expect(await tokenFactoryContract.lookupTokenContract(regularERC20.address))
       .to.equal(ethers.constants.AddressZero);
