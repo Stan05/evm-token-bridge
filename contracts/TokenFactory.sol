@@ -17,7 +17,12 @@ contract TokenFactory is Ownable {
         external
         onlyOwner
     {
-        ERC20Token newTokenContract = new ERC20Token(_name, _symbol);
+        ERC20Token newTokenContract = new ERC20Token(
+            _name,
+            _symbol,
+            msg.sender
+        );
+        tokenContracts[address(newTokenContract)] = newTokenContract;
         emit TokenCreated(address(newTokenContract), _name, _symbol);
     }
 
