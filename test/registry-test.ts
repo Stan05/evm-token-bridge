@@ -1,16 +1,20 @@
 import { ethers } from "hardhat";
-import { Contract, ContractFactory, Signer } from "ethers";
+import { Contract, ContractFactory, Signer, Wallet } from "ethers";
 import { expect } from "chai";
+import { deployContract, MockProvider } from "ethereum-waffle";
+import RegistryABI from "../artifacts/contracts/Registry.sol/Registry.json";
 
 describe("Registry", function () {
-  let accounts: Signer[];
+  let provider: MockProvider;
   let registry: Contract;
+  let accounts: Signer[];
+  let deployer: Wallet;
 
   before(async function () {
-    const registryFactory: ContractFactory = await ethers.getContractFactory("Registry");
+    provider = new MockProvider();
+    [deployer] = provider.getWallets();  
+    registry = await deployContract(deployer, RegistryABI, []); 
     accounts = await ethers.getSigners();
-    registry = await registryFactory.deploy();
-    await registry.deployed();
   });
 
   it("Should register token connection", async function () {
@@ -20,10 +24,10 @@ describe("Registry", function () {
     
     await expect(registry.registerTargetTokenAddress(sourceToken, targetChainId, targetToken))
         .to.emit(registry, 'TokenConnectionRegistered')
-        .withArgs(sourceToken, targetToken, 31337, targetChainId);
+        .withArgs(sourceToken, targetToken, 1, targetChainId);
     expect(await registry.lookupTargetTokenAddress(sourceToken, targetChainId))
         .to.equal(targetToken);
-    expect(await registry.lookupSourceTokenAddress(targetToken, 31337))
+    expect(await registry.lookupSourceTokenAddress(targetToken, 1))
         .to.equal(sourceToken);
   });
 

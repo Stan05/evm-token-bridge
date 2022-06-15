@@ -1,15 +1,17 @@
 import { ethers } from "hardhat";
-import { BigNumber, Contract, ContractFactory, Signer, Wallet } from "ethers";
+import { BigNumber, Contract, Wallet } from "ethers";
 import { expect } from "chai";
 import BridgeABI from "../artifacts/contracts/Bridge.sol/Bridge.json";
 import ERC20TokenABI from "../artifacts/contracts/ERC20Token.sol/ERC20Token.json";
-import TokenFactoryABI from "../artifacts/contracts//TokenFactory.sol/TokenFactory.json";
+import TokenFactoryABI from "../artifacts/contracts/TokenFactory.sol/TokenFactory.json";
+import GovernanceABI from "../artifacts/contracts/Governance.sol/Governance.json";
 import { getUserPermit, getValidatorAllowanceSignature, getValidatorTokenCreationSignature } from "./helper/helper-functions";
-import { deployContract, link, MockProvider } from "ethereum-waffle";
+import { deployContract, MockProvider } from "ethereum-waffle";
 import { getAddress } from "ethers/lib/utils";
 
 describe("Bridge", function () {
   let provider: MockProvider;
+  let governance: Contract;
   let bridge: Contract;
   let erc20Token: Contract;
   let wrappedErc20Token: Contract;
@@ -24,22 +26,31 @@ describe("Bridge", function () {
     provider = new MockProvider();
     [deployer, validator, validator2, user, unregisteredValidator] = provider.getWallets();
 
-    bridge = await deployContract(deployer, BridgeABI, [[validator.address, validator2.address]]);
-    await bridge.deployed();
+    governance = await deployContract(deployer, GovernanceABI, [[validator.address, validator2.address]]);
+    await governance.deployed();
 
+    const tokenFactory: Contract = await deployContract(deployer, TokenFactoryABI, []);
+    await tokenFactory.deployed();
+
+    bridge = await deployContract(deployer, BridgeABI, [governance.address, tokenFactory.address]);
+    await bridge.deployed();
+    
+    await governance.transferOwnership(bridge.address);
+    await tokenFactory.transferOwnership(bridge.address);
+    
     erc20Token = await deployContract(deployer, ERC20TokenABI, ["Token", "TKN", deployer.address]); 
     await erc20Token.deployed(); 
 
     const wrappedTokenName: string = "Bridge" + await erc20Token.name();
     const wrappedTokenSymbol: string = "b" + await erc20Token.symbol();
     const signatures: string[] = [];
-    signatures.push(await getValidatorTokenCreationSignature(validator, bridge.address, user.address, wrappedTokenName, wrappedTokenSymbol));
+    signatures.push(await getValidatorTokenCreationSignature(validator, governance.address, user.address, wrappedTokenName, wrappedTokenSymbol));
     
     const estimate = await bridge.connect(user).estimateGas.createToken(wrappedTokenName, wrappedTokenSymbol, signatures);
-    const tx = await bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol, signatures, { gasPrice: estimate });
+    const tx = await bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol, signatures);
     const receipt = await tx.wait();
    
-    const wrappedTokenAddress: string =  getAddress(ethers.utils.hexStripZeros(receipt.events[0].address));
+    const wrappedTokenAddress: string = getAddress(ethers.utils.hexStripZeros(receipt.events[0].address));
     wrappedErc20Token = await ethers.getContractAtFromArtifact(ERC20TokenABI, wrappedTokenAddress, deployer);
   });
 
@@ -92,7 +103,7 @@ describe("Bridge", function () {
       const amount: number = 10;
       const wrappedTokenAddress: string = wrappedErc20Token.address;
       const signatures: string[] = [];
-      signatures.push(await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, bridge.address));
+      signatures.push(await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, governance.address));
       
       const estimate = bridge.connect(user).estimateGas.mint(receiverAddress, amount, wrappedTokenAddress, signatures);
       await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, { gasPrice: estimate }))
@@ -105,7 +116,7 @@ describe("Bridge", function () {
       const amount: number = 10;
       const wrappedTokenAddress: string = wrappedErc20Token.address;
       const signatures: string[] = [];
-      signatures.push(await getValidatorAllowanceSignature(unregisteredValidator, receiverAddress, amount, wrappedTokenAddress, bridge.address));
+      signatures.push(await getValidatorAllowanceSignature(unregisteredValidator, receiverAddress, amount, wrappedTokenAddress, governance.address));
       
       const estimate = bridge.connect(user).estimateGas.mint(receiverAddress, amount, wrappedTokenAddress, signatures);
       await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, { gasPrice: estimate }))
@@ -117,7 +128,7 @@ describe("Bridge", function () {
       const amount: number = 10;
       const wrappedTokenAddress: string = erc20Token.address;
       const signatures: string[] = [];
-      const sig = await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, bridge.address);
+      const sig = await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, governance.address);
       signatures.push(sig);
   
       await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures))
@@ -178,7 +189,7 @@ describe("Bridge", function () {
       const amount: number = 10;
       const userAddress: string = await user.getAddress();
       const signatures: string[] = [];
-      signatures.push(await getValidatorAllowanceSignature(validator, userAddress, amount, tokenAddress, bridge.address));
+      signatures.push(await getValidatorAllowanceSignature(validator, userAddress, amount, tokenAddress, governance.address));
       
       const initialBalance: BigNumber = await erc20Token.balanceOf(userAddress);
       await erc20Token.mint(bridge.address, amount);
@@ -193,7 +204,7 @@ describe("Bridge", function () {
       const amount: number = 10;
       const userAddress: string = await user.getAddress();
       const signatures: string[] = [];
-      signatures.push(await getValidatorAllowanceSignature(unregisteredValidator, userAddress, amount, tokenAddress, bridge.address));
+      signatures.push(await getValidatorAllowanceSignature(unregisteredValidator, userAddress, amount, tokenAddress, governance.address));
       
       await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures))
         .to.be.revertedWith('Unrecognized validator signature');
@@ -207,7 +218,7 @@ describe("Bridge", function () {
       const wrappedTokenName: string = "BridgeToken"
       const wrappedTokenSymbol: string = "bTKN";
       const signatures: string[] = [];
-      signatures.push(await getValidatorTokenCreationSignature(validator, bridge.address, userAddress, wrappedTokenName, wrappedTokenSymbol));
+      signatures.push(await getValidatorTokenCreationSignature(validator, governance.address, userAddress, wrappedTokenName, wrappedTokenSymbol));
 
       const tokenFactoryAddress: string = await bridge.tokenFactory();
       const factory: Contract = await ethers.getContractAtFromArtifact(TokenFactoryABI, tokenFactoryAddress, deployer);
@@ -223,7 +234,7 @@ describe("Bridge", function () {
       const wrappedTokenName: string = "BridgeToken"
       const wrappedTokenSymbol: string = "bTKN";
       const signatures: string[] = [];
-      signatures.push(await getValidatorTokenCreationSignature(unregisteredValidator, bridge.address, userAddress, wrappedTokenName, wrappedTokenSymbol));
+      signatures.push(await getValidatorTokenCreationSignature(unregisteredValidator, governance.address, userAddress, wrappedTokenName, wrappedTokenSymbol));
 
       await expect(bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol, signatures))
         .to.be.revertedWith('Unrecognized validator signature');

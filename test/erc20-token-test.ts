@@ -1,14 +1,9 @@
-import { ethers } from "hardhat";
-import { Contract, ContractFactory, Signer, Wallet } from "ethers";
+import { Contract, Wallet } from "ethers";
 import { expect } from "chai";
-import BridgeABI from "../artifacts/contracts/Bridge.sol/Bridge.json";
 import ERC20TokenABI from "../artifacts/contracts/ERC20Token.sol/ERC20Token.json";
-import GoverananceABI from "../artifacts/contracts/Governance.sol/Governance.json";
-import TokenFactoryABI from "../artifacts/contracts//TokenFactory.sol/TokenFactory.json";
-import { getUserPermit, getValidatorAllowanceSignature, getValidatorTokenCreationSignature } from "./helper/helper-functions";
-import { deployContract, link, MockProvider } from "ethereum-waffle";
+import { deployContract, MockProvider } from "ethereum-waffle";
 
-describe("Bridge", function () {
+describe("ERC20Token", function () {
   let provider: MockProvider;
   let erc20Token: Contract;
   let user: Wallet;

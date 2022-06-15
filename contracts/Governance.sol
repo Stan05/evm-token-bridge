@@ -12,16 +12,16 @@ contract Governance is Ownable {
     event ValidatorRegistered(address indexed validator);
     event ValidatorUnRegistered(address indexed validator);
 
-    constructor(string memory _name, address[] memory _validators) {
+    constructor(address[] memory _validators) {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256(
                     "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
                 ),
-                keccak256(bytes(_name)),
+                keccak256(bytes("Governance")),
                 keccak256(bytes("1")),
                 block.chainid,
-                msg.sender
+                address(this)
             )
         );
         for (uint i = 0; i < _validators.length; i++) {

@@ -28,9 +28,9 @@ contract Bridge {
 
     event Release(address indexed receiver, address token, uint amount);
 
-    constructor(address[] memory _validators) {
-        governance = new Governance("Bridge", _validators);
-        tokenFactory = new TokenFactory();
+    constructor(address _governance, address _tokenFacory) {
+        governance = Governance(_governance);
+        tokenFactory = TokenFactory(_tokenFacory);
     }
 
     /**

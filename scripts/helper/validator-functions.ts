@@ -1,6 +1,6 @@
 import { BigNumber, Wallet } from "ethers";
 import { JsonRpcProvider } from '@ethersproject/providers';
-import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
+import GovernanceABI from '../../artifacts/contracts/Governance.sol/Governance.json';
 
 const getValidatorAllowanceSignature = async (wallet: Wallet, 
         provider: JsonRpcProvider, 
@@ -11,7 +11,7 @@ const getValidatorAllowanceSignature = async (wallet: Wallet,
   const chainId: number = parseInt(await provider.send("eth_chainId", []));
   return await wallet._signTypedData(
     {
-      name: BridgeABI.contractName,
+      name: GovernanceABI.contractName,
       version: '1',
       chainId: chainId,
       verifyingContract: bridgeContractAddress
@@ -39,7 +39,7 @@ const getValidatorTokenCreationSignature = async (wallet: Wallet,
   const chainId: number = parseInt(await provider.send("eth_chainId", []));
   return await wallet._signTypedData(
       {
-        name: BridgeABI.contractName,
+        name: GovernanceABI.contractName,
         version: '1',
         chainId: chainId,
         verifyingContract: bridgeContractAddress

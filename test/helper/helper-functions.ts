@@ -1,5 +1,5 @@
 import { Wallet, Contract, ethers } from "ethers";
-import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
+import GovernanceABI from '../../artifacts/contracts/Governance.sol/Governance.json';
 
 const getUserPermit = async (user: Wallet, token: Contract, spender: string, amount: number, chainId: number) => {
     const nonce = await token.nonces(user.address);
@@ -39,13 +39,13 @@ const getUserPermit = async (user: Wallet, token: Contract, spender: string, amo
       return preparedSignature;
   }
   
-const getValidatorAllowanceSignature = async (validator: Wallet, receiverAddress: string, amount: number, targetToken: string, bridgeAddress: string) => {
+const getValidatorAllowanceSignature = async (validator: Wallet, receiverAddress: string, amount: number, targetToken: string, governanceAddress: string) => {
     return await validator._signTypedData(
       {
-        name: BridgeABI.contractName,
+        name: GovernanceABI.contractName,
         version: '1',
         chainId: 1,
-        verifyingContract: bridgeAddress
+        verifyingContract: governanceAddress
       },
       {
           Allowance: [
@@ -68,7 +68,7 @@ const getValidatorTokenCreationSignature = async (validator: Wallet,
   tokenSymbol: string): Promise<string> => {
   return await validator._signTypedData(
     {
-      name: BridgeABI.contractName,
+      name: GovernanceABI.contractName,
       version: '1',
       chainId: 1,
       verifyingContract: bridgeContractAddress
