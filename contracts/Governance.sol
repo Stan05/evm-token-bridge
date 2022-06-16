@@ -3,8 +3,12 @@ pragma solidity >=0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract Governance is Ownable {
+    using Counters for Counters.Counter;
+
+    mapping(address => Counters.Counter) private _nonces;
     bytes32 private DOMAIN_SEPARATOR;
     mapping(address => bool) private registeredValidators;
 
@@ -60,7 +64,7 @@ contract Governance is Ownable {
         uint256 _amount,
         address payable _token,
         bytes[] memory _validatorsSignatures
-    ) external view {
+    ) external {
         for (uint i = 0; i < _validatorsSignatures.length; i++) {
             bytes memory sig = _validatorsSignatures[i];
             address _validatorAddress = _recoverFromAllowance(
@@ -76,12 +80,16 @@ contract Governance is Ownable {
         }
     }
 
+    function nonces(address owner) public view virtual returns (uint256) {
+        return _nonces[owner].current();
+    }
+
     function _recoverFromAllowance(
         address _receiver,
         uint256 _amount,
         address payable _token,
         bytes memory _validatorSignature
-    ) private view returns (address) {
+    ) private returns (address) {
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -89,16 +97,23 @@ contract Governance is Ownable {
                 keccak256(
                     abi.encode(
                         keccak256(
-                            "Allowance(address receiver,uint256 amount,address token)"
+                            "Allowance(address receiver,uint256 amount,address token,uint256 nonce)"
                         ),
                         _receiver,
                         _amount,
-                        _token
+                        _token,
+                        _useNonce(_receiver)
                     )
                 )
             )
         );
 
         return ECDSA.recover(digest, _validatorSignature);
+    }
+
+    function _useNonce(address owner) internal returns (uint256 current) {
+        Counters.Counter storage nonce = _nonces[owner];
+        current = nonce.current();
+        nonce.increment();
     }
 }

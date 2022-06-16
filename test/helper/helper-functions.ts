@@ -39,25 +39,28 @@ const getUserPermit = async (user: Wallet, token: Contract, spender: string, amo
       return preparedSignature;
   }
   
-const getValidatorAllowanceSignature = async (validator: Wallet, receiverAddress: string, amount: number, targetToken: string, governanceAddress: string) => {
+const getValidatorAllowanceSignature = async (validator: Wallet, receiverAddress: string, amount: number, targetToken: string, governance: Contract) => {
+    const nonce = await governance.nonces(receiverAddress);
     return await validator._signTypedData(
       {
         name: GovernanceABI.contractName,
         version: '1',
         chainId: 1,
-        verifyingContract: governanceAddress
+        verifyingContract: governance.address
       },
       {
           Allowance: [
             { name: 'receiver', type: 'address' },
             { name: 'amount', type: 'uint256' },
-            { name: 'token', type: 'address' }
+            { name: 'token', type: 'address' },
+            { name: 'nonce', type: 'uint256' }
           ],
       },
       {
         receiver: receiverAddress, 
         amount: amount, 
         token: targetToken,
+        nonce: nonce
       });
 }
 

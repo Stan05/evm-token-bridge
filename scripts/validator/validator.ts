@@ -5,6 +5,7 @@ import hre from 'hardhat';
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
 import RegistryABI from '../../artifacts/contracts/Registry.sol/Registry.json';
 import ERC20ABI from '../../artifacts/contracts/ERC20Token.sol/ERC20Token.json';
+import GovernanceABI from '../../artifacts/contracts/Governance.sol/Governance.json';
 import { StaticJsonRpcProvider } from '@ethersproject/providers';
 import { getValidatorAllowanceSignature } from '../helper/validator-functions';
 
@@ -64,7 +65,8 @@ const handleLockEvent = async (event: { data: any; topics: string[]; blockNumber
 
     const targetToken: string = await lookupTargetWrappedTokenAddress(from, lockedToken, targetChainId);
     if (targetToken !== ethers.constants.AddressZero) {
-        console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(validatorTargetChainWallet, targetChainProvider, from, lockedAmount, targetToken, await targetBridgeContract.governance()));
+        const governance: Contract = new hre.ethers.Contract(await targetBridgeContract.governance(), GovernanceABI.abi, targetChainProvider);
+        console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(validatorTargetChainWallet, targetChainProvider, from, lockedAmount, targetToken, governance));
     }
 }
 
@@ -97,7 +99,8 @@ const handleBurnEvent = async (event: { data: BytesLike; topics: string[]; block
     
     const sourceToken: string = await lookupSourceTokenAddress(burnToken, targetChainId);
     
-    console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(validatorSourceChainWallet, sourceChainProvider, from, burnAmount, sourceToken, await sourceBridgeContract.governance()));
+    const governance: Contract = new hre.ethers.Contract(await targetBridgeContract.governance(), GovernanceABI.abi, sourceChainProvider);
+    console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(validatorSourceChainWallet, sourceChainProvider, from, burnAmount, sourceToken, governance));
 }
 
 const handleReleaseEvent = async (event: any) => {
