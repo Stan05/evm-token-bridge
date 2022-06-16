@@ -15,9 +15,9 @@ async function main() {
 
     const receiverAddress: string = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
     const amount: number = 10;
-    const erc20TokenAddress: string = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+    const erc20TokenAddress: string = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
     console.log('Releasing %d of token %s to receiver address %s', amount, erc20TokenAddress, receiverAddress);
-    const signatures = ["0x589cbb8fccd1418de47007f57ed65e7b7ef30994819f35be2e2e917691ec05655e5b63c7a0f5ea23e3cd358b0c51d72d52859d538af9cb9b5c5fcda6a6dbef6d1b"];
+    const signatures = ["0x0540daf8e6fafba42d2491c2b0d2163b4da68207f91a75293e70f1be12e19c8b0e64a3818982d228e87fbe67a13741a76318ef1b4aec1facae88b5ea3d7a80ae1c"];
     const tx = await sourceBridgeContract
                     .connect(userWallet)
                     .release(receiverAddress, 

@@ -61,34 +61,7 @@ const getValidatorAllowanceSignature = async (validator: Wallet, receiverAddress
       });
 }
 
-const getValidatorTokenCreationSignature = async (validator: Wallet,
-  bridgeContractAddress: string,
-  userAddress: string,
-  tokenName: string,
-  tokenSymbol: string): Promise<string> => {
-  return await validator._signTypedData(
-    {
-      name: GovernanceABI.contractName,
-      version: '1',
-      chainId: 1,
-      verifyingContract: bridgeContractAddress
-    },
-    {
-        TokenCreation: [
-          { name: 'from', type: 'address' },
-          { name: 'name', type: 'string' },
-          { name: 'symbol', type: 'string' }
-        ],
-    },
-    {
-      from: userAddress, 
-      name: tokenName, 
-      symbol: tokenSymbol,
-    });
-}
-
 export {
     getUserPermit,
-    getValidatorAllowanceSignature,
-    getValidatorTokenCreationSignature
+    getValidatorAllowanceSignature
 }

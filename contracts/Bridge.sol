@@ -4,11 +4,11 @@ pragma solidity >=0.8.4;
 import "./ERC20Token.sol";
 import "./Governance.sol";
 import "./Registry.sol";
-import "./TokenFactory.sol";
+import "./WrappedTokenFactory.sol";
 
 contract Bridge {
     Governance public governance;
-    TokenFactory public tokenFactory;
+    WrappedTokenFactory public wrappedTokenFactory;
 
     event Lock(
         address indexed from,
@@ -30,7 +30,7 @@ contract Bridge {
 
     constructor(address _governance, address _tokenFacory) {
         governance = Governance(_governance);
-        tokenFactory = TokenFactory(_tokenFacory);
+        wrappedTokenFactory = WrappedTokenFactory(_tokenFacory);
     }
 
     /**
@@ -70,16 +70,15 @@ contract Bridge {
         address payable _wrappedToken,
         bytes[] calldata _validatorsSignatures
     ) external {
-        governance._validateAllowanceSignatures(
+        governance.validateAllowanceSignatures(
             _receiver,
             _amount,
             _wrappedToken,
             _validatorsSignatures
         );
 
-        ERC20Token wrappedTokenContract = tokenFactory.lookupTokenContract(
-            _wrappedToken
-        );
+        ERC20Token wrappedTokenContract = wrappedTokenFactory
+            .lookupTokenContract(_wrappedToken);
         require(
             address(wrappedTokenContract) != address(0),
             "Wrapped Token is not existing"
@@ -103,9 +102,8 @@ contract Bridge {
     ) external {
         require(_amount > 0, "Burnt amount is required.");
 
-        ERC20Token wrappedTokenContract = tokenFactory.lookupTokenContract(
-            _wrappedToken
-        );
+        ERC20Token wrappedTokenContract = wrappedTokenFactory
+            .lookupTokenContract(_wrappedToken);
         require(
             address(wrappedTokenContract) != address(0),
             "Wrapped Token is not existing"
@@ -133,7 +131,7 @@ contract Bridge {
         address payable _token,
         bytes[] calldata _validatorsSignatures
     ) external {
-        governance._validateAllowanceSignatures(
+        governance.validateAllowanceSignatures(
             _receiver,
             _amount,
             _token,
@@ -145,18 +143,11 @@ contract Bridge {
         emit Release(msg.sender, _token, _amount);
     }
 
-    function createToken(
-        string calldata _name,
-        string calldata _symbol,
-        bytes[] calldata _validatorsSignatures
-    ) external {
-        governance._validateTokenCreationSignatures(
-            msg.sender,
-            _name,
-            _symbol,
-            _validatorsSignatures
-        );
+    function createToken(string calldata _name, string calldata _symbol)
+        external
+    {
+        require(governance.hasAccess(msg.sender), "Validator not registered");
 
-        tokenFactory.createToken(_name, _symbol);
+        wrappedTokenFactory.createToken(_name, _symbol);
     }
 }

@@ -6,14 +6,14 @@ async function bridge(tokenContractAddress: string, bridgeContractAddress: strin
     
 	const localProvider = new hre.ethers.providers.JsonRpcProvider(hre.config.networks.localhost.url);
     
-    const [ deployer, validator, user] = await hre.ethers.getSigners();
+    const [ , , user] = await hre.ethers.getSigners();
     
     const BridgeFactory = await hre.ethers.getContractFactory("Bridge"); 
     const bridgeContract = BridgeFactory.attach(bridgeContractAddress);
     
     const TokenFactory = await hre.ethers.getContractFactory("ERC20Token");
     const tokenContract = TokenFactory.attach(tokenContractAddress);
-    console.log('tokenContract');
+    
     await tokenContract.mint(user.address, 10);
     
     console.log('User address ', user.address);

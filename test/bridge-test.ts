@@ -3,9 +3,9 @@ import { BigNumber, Contract, Wallet } from "ethers";
 import { expect } from "chai";
 import BridgeABI from "../artifacts/contracts/Bridge.sol/Bridge.json";
 import ERC20TokenABI from "../artifacts/contracts/ERC20Token.sol/ERC20Token.json";
-import TokenFactoryABI from "../artifacts/contracts/TokenFactory.sol/TokenFactory.json";
+import WrappedTokenFactoryABI from "../artifacts/contracts/WrappedTokenFactory.sol/WrappedTokenFactory.json";
 import GovernanceABI from "../artifacts/contracts/Governance.sol/Governance.json";
-import { getUserPermit, getValidatorAllowanceSignature, getValidatorTokenCreationSignature } from "./helper/helper-functions";
+import { getUserPermit, getValidatorAllowanceSignature } from "./helper/helper-functions";
 import { deployContract, MockProvider } from "ethereum-waffle";
 import { getAddress } from "ethers/lib/utils";
 
@@ -29,25 +29,22 @@ describe("Bridge", function () {
     governance = await deployContract(deployer, GovernanceABI, [[validator.address, validator2.address]]);
     await governance.deployed();
 
-    const tokenFactory: Contract = await deployContract(deployer, TokenFactoryABI, []);
-    await tokenFactory.deployed();
+    const wrappedTokenFactory: Contract = await deployContract(deployer, WrappedTokenFactoryABI, []);
+    await wrappedTokenFactory.deployed();
 
-    bridge = await deployContract(deployer, BridgeABI, [governance.address, tokenFactory.address]);
+    bridge = await deployContract(deployer, BridgeABI, [governance.address, wrappedTokenFactory.address]);
     await bridge.deployed();
     
     await governance.transferOwnership(bridge.address);
-    await tokenFactory.transferOwnership(bridge.address);
+    await wrappedTokenFactory.transferOwnership(bridge.address);
     
     erc20Token = await deployContract(deployer, ERC20TokenABI, ["Token", "TKN", deployer.address]); 
     await erc20Token.deployed(); 
 
     const wrappedTokenName: string = "Bridge" + await erc20Token.name();
     const wrappedTokenSymbol: string = "b" + await erc20Token.symbol();
-    const signatures: string[] = [];
-    signatures.push(await getValidatorTokenCreationSignature(validator, governance.address, user.address, wrappedTokenName, wrappedTokenSymbol));
-    
-    const estimate = await bridge.connect(user).estimateGas.createToken(wrappedTokenName, wrappedTokenSymbol, signatures);
-    const tx = await bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol, signatures);
+
+    const tx = await bridge.connect(validator).createToken(wrappedTokenName, wrappedTokenSymbol);
     const receipt = await tx.wait();
    
     const wrappedTokenAddress: string = getAddress(ethers.utils.hexStripZeros(receipt.events[0].address));
@@ -213,31 +210,27 @@ describe("Bridge", function () {
 
   describe('Create Token', function(){
 
-    it('Should create token with signatures', async () => { 
+    it('Validator should be able to create token', async () => { 
       const userAddress: string = await user.getAddress();
       const wrappedTokenName: string = "BridgeToken"
       const wrappedTokenSymbol: string = "bTKN";
       const signatures: string[] = [];
-      signatures.push(await getValidatorTokenCreationSignature(validator, governance.address, userAddress, wrappedTokenName, wrappedTokenSymbol));
 
-      const tokenFactoryAddress: string = await bridge.tokenFactory();
-      const factory: Contract = await ethers.getContractAtFromArtifact(TokenFactoryABI, tokenFactoryAddress, deployer);
+      const wrappedTokenFactoryAddress: string = await bridge.wrappedTokenFactory();
+      const factory: Contract = await ethers.getContractAtFromArtifact(WrappedTokenFactoryABI, wrappedTokenFactoryAddress, deployer);
 
-      const estimate = await bridge.connect(user).estimateGas.createToken(wrappedTokenName, wrappedTokenSymbol, signatures);
-      await expect(bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol, signatures, { gasPrice: estimate}))
+      //const estimate = await bridge.connect(validator).estimateGas.createToken(wrappedTokenName, wrappedTokenSymbol, signatures);
+      await expect(bridge.connect(validator).createToken(wrappedTokenName, wrappedTokenSymbol, signatures))
         .to.emit(factory, 'TokenCreated')
         .and.not.reverted;
     });
 
-    it('Should not allow create token with unrecognized validator', async () => { 
-      const userAddress: string = await user.getAddress();
+    it('Should not allow create token with not registered validator', async () => { 
       const wrappedTokenName: string = "BridgeToken"
       const wrappedTokenSymbol: string = "bTKN";
-      const signatures: string[] = [];
-      signatures.push(await getValidatorTokenCreationSignature(unregisteredValidator, governance.address, userAddress, wrappedTokenName, wrappedTokenSymbol));
 
-      await expect(bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol, signatures))
-        .to.be.revertedWith('Unrecognized validator signature');
+      await expect(bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol))
+        .to.be.revertedWith('Validator not registered');
     });
   });
 });

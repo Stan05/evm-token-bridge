@@ -4,8 +4,8 @@ pragma solidity >=0.8.4;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ERC20Token.sol";
 
-contract TokenFactory is Ownable {
-    mapping(address => ERC20Token) private tokenContracts;
+contract WrappedTokenFactory is Ownable {
+    mapping(address => ERC20Token) private wrappedTokenContracts;
 
     event TokenCreated(
         address indexed newTokenAddress,
@@ -17,13 +17,9 @@ contract TokenFactory is Ownable {
         external
         onlyOwner
     {
-        ERC20Token newTokenContract = new ERC20Token(
-            _name,
-            _symbol,
-            msg.sender
-        );
-        tokenContracts[address(newTokenContract)] = newTokenContract;
-        emit TokenCreated(address(newTokenContract), _name, _symbol);
+        ERC20Token wrappedContract = new ERC20Token(_name, _symbol, msg.sender);
+        wrappedTokenContracts[address(wrappedContract)] = wrappedContract;
+        emit TokenCreated(address(wrappedContract), _name, _symbol);
     }
 
     function lookupTokenContract(address _token)
@@ -31,6 +27,6 @@ contract TokenFactory is Ownable {
         view
         returns (ERC20Token)
     {
-        return tokenContracts[_token];
+        return wrappedTokenContracts[_token];
     }
 }

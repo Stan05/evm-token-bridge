@@ -55,7 +55,7 @@ contract Governance is Ownable {
         return registeredValidators[_validator];
     }
 
-    function _validateAllowanceSignatures(
+    function validateAllowanceSignatures(
         address _receiver,
         uint256 _amount,
         address payable _token,
@@ -67,27 +67,6 @@ contract Governance is Ownable {
                 _receiver,
                 _amount,
                 _token,
-                sig
-            );
-            require(
-                registeredValidators[_validatorAddress],
-                "Unrecognized validator signature"
-            );
-        }
-    }
-
-    function _validateTokenCreationSignatures(
-        address _from,
-        string memory _tokenName,
-        string memory _tokenSymbol,
-        bytes[] memory _validatorsSignatures
-    ) external view {
-        for (uint i = 0; i < _validatorsSignatures.length; i++) {
-            bytes memory sig = _validatorsSignatures[i];
-            address _validatorAddress = _recoverFromTokenCreation(
-                _from,
-                _tokenName,
-                _tokenSymbol,
                 sig
             );
             require(
@@ -115,32 +94,6 @@ contract Governance is Ownable {
                         _receiver,
                         _amount,
                         _token
-                    )
-                )
-            )
-        );
-
-        return ECDSA.recover(digest, _validatorSignature);
-    }
-
-    function _recoverFromTokenCreation(
-        address _from,
-        string memory _tokenName,
-        string memory _tokenSymbol,
-        bytes memory _validatorSignature
-    ) private view returns (address) {
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(
-                        keccak256(
-                            "TokenCreation(address from,string name,string symbol)"
-                        ),
-                        _from,
-                        keccak256(bytes(_tokenName)),
-                        keccak256(bytes(_tokenSymbol))
                     )
                 )
             )

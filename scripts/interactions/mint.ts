@@ -14,9 +14,9 @@ async function main() {
 
     const receiverAddress: string = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
     const amount: number = 10;
-    const wrappedTokenAddress: string = "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"
+    const wrappedTokenAddress: string = "0xbf9fBFf01664500A33080Da5d437028b07DFcC55"
     console.log('Minting %d of token %s to receiver address %s', amount, wrappedTokenAddress, receiverAddress);
-    const signatures = ["0x024a754dcd12d0d717a17e4612ad5ad3eeee2e366a5eef436137a7dae016f4ef50a17e4160af9407b3d5d47b6e47d4af588675beb8aa597e8f580e2b76c7163f1c"];
+    const signatures = ["0x06f3e45ab2305a128dd235b6e1cf5e8bb45f945ba032ad876369d4ba339332dd0b9dd746c8f665f86e67763d8f97b035f8896d636b5d99786f58c24f77b3134f1c"];
     const tx = await targetBridgeContract
                     .connect(userWallet)
                     .mint(receiverAddress, 

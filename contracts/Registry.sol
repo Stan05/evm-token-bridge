@@ -22,7 +22,7 @@ contract Registry is Ownable {
     }
 
     /**
-     * @notice lookup by source token and target chain id the corresponding token address
+     * @notice lookup target token address by source token and target chain id
      */
     function lookupTargetTokenAddress(
         address _sourceToken,
@@ -32,7 +32,7 @@ contract Registry is Ownable {
     }
 
     /**
-     * @notice lookup by target token and source chain id the corresponding source token address
+     * @notice lookup source token by target token and source chain id
      */
     function lookupSourceTokenAddress(
         address _targetToken,

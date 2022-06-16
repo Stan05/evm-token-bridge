@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { task, subtask } from "hardhat/config";
+import { task } from "hardhat/config";
 import "@nomiclabs/hardhat-ethers";
 import '@nomiclabs/hardhat-waffle';
 import 'solidity-coverage';
@@ -7,11 +7,11 @@ import 'solidity-coverage';
 /**
  * Deployments Tasks
  */
-task("deploy-bridge", "Deploys the bridge on localhost")
+task("setup-dev", "Setup development environment")
   .setAction(async (args, hre) => {
     await hre.run('compile');
-    const deployBridge = require("./scripts/deployments/deploy-bridge");
-    return await deployBridge();
+    const setup = require("./scripts/deployments/setup");
+    return await setup();
  });
 
 task("deploy-token", "Deploys token on localhost")
