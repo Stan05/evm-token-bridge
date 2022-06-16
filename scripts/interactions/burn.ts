@@ -6,9 +6,10 @@ import { hexlify } from 'ethers/lib/utils';
 import hre from 'hardhat';
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
 import ERC20TokenABI from '../../artifacts/contracts/ERC20Token.sol/ERC20Token.json';
+import { getUserPermit } from '../helper/user-functions';
 
 const targetBridgeContractAddress: string = process.env.TARGET_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
-const wrappedTokenContractAddress: string = "0xbf9fBFf01664500A33080Da5d437028b07DFcC55";
+const wrappedTokenContractAddress: string = "0xCafac3dD18aC6c6e92c921884f9E4176737C052c";
 const targetChainProvider: StaticJsonRpcProvider = new hre.ethers.providers.StaticJsonRpcProvider(process.env.GANACHE_URL?.toString() ?? "");
 const targetBridgeContract: Contract = new hre.ethers.Contract(targetBridgeContractAddress, BridgeABI.abi, targetChainProvider);
 const targetTokenContract: Contract = new hre.ethers.Contract(wrappedTokenContractAddress, ERC20TokenABI.abi, targetChainProvider);
@@ -22,7 +23,7 @@ async function main() {
     
     console.log('Burning %d of token %s from user address %s', amount, targetTokenContract.address, userWallet.address);
   
-    const signature = await getSignature(userWallet.address, targetBridgeContract.address, targetTokenContract, targetChainProvider, amount);
+    const signature = await getUserPermit(userWallet.address, targetBridgeContract.address, targetTokenContract, targetChainProvider, amount);
     const tx = await targetBridgeContract
                     .connect(userWallet)
                     .burn(targetChainId,
@@ -38,64 +39,6 @@ async function main() {
     console.log('Successful burn');
     /*const mintTokenContract = new hre.ethers.Contract("0xa16E02E87b7454126E5E10d957A927A7F5B5d2be", ERC20TokenABI.abi, targetChainProvider);
     console.log(await mintTokenContract.balanceOf(userWallet.getAddress()));*/
-}
-
-async function getSignature(userAddress: string, spender: string, tokenContract: Contract, provider: StaticJsonRpcProvider, permitAmount: number): Promise<{v: number, r: string, s:string, deadline: number}> {
-    const nonce = (await tokenContract.nonces(userAddress));
-    const chainId: number = parseInt(await provider.send("eth_chainId", []));
-    const deadline = + new Date() + 60 * 60; 
-    
-    const EIP712Domain = [
-        { name: 'name', type: 'string' },
-        { name: 'version', type: 'string' },
-        { name: 'chainId', type: 'uint256' },
-        { name: 'verifyingContract', type: 'address' }
-    ];
-
-    const domain = {
-        name: await tokenContract.name(),
-        version: '1',
-        chainId: chainId,
-        verifyingContract: tokenContract.address
-    };
-  
-    const Permit = [ 
-        { name: 'owner', type: 'address' },
-        { name: 'spender', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'nonce', type: 'uint256' },
-        { name: 'deadline', type: 'uint256' }
-    ];
-    
-    const message = {
-        owner: userAddress, 
-        spender: spender, 
-        value: permitAmount.toString(),
-        nonce: nonce.toString(),
-        deadline
-    };
-
-    const data = {
-        types: {
-            EIP712Domain,
-            Permit
-        },
-        domain,
-        primaryType: 'Permit',
-        message
-    }
-    
-    const signatureLike = await provider.send('eth_signTypedData_v4', [userAddress, data]); 
-    
-    const signature = hre.ethers.utils.splitSignature(signatureLike);
-    const preparedSignature = {
-        v: signature.v,
-        r: signature.r,
-        s: signature.s,
-        deadline
-    };
-
-    return preparedSignature;
 }
 
 main();

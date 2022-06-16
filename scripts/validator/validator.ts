@@ -60,6 +60,7 @@ const handleLockEvent = async (event: { data: any; topics: string[]; blockNumber
     console.log('Target chain id : ', targetChainId);
     console.log('Locked Token : ', lockedToken);
     console.log('Locked Amount : ', lockedAmount.toString());
+    await logNewBalance(lockedToken, from);
 
     const targetToken: string = await lookupTargetWrappedTokenAddress(from, lockedToken, targetChainId);
     if (targetToken !== ethers.constants.AddressZero) {
@@ -77,10 +78,7 @@ const handleMintEvent = async (event: { topics: any[]; data: any; blockNumber: a
     console.log('Receiver : ', receiver);
     console.log('Mint Wrapped Token : ', mintToken);
     console.log('Mint Amount : ', mintAmount.toString());
-    const mintTokenContract = new hre.ethers.Contract(mintToken, ERC20ABI.abi, targetChainProvider);
-    const tokenName = await mintTokenContract.name();
-    const newBalance = (await mintTokenContract.balanceOf(receiver)).toString();
-    console.log('User\'s %s balance %d of \'%s\' token.\n', receiver, newBalance, tokenName);
+    await logNewBalance(mintToken, receiver);
 };
 
 const handleBurnEvent = async (event: { data: BytesLike; topics: string[]; blockNumber: any; }) => {
@@ -95,7 +93,8 @@ const handleBurnEvent = async (event: { data: BytesLike; topics: string[]; block
     console.log('Target chain id : ', targetChainId);
     console.log('Burnt Token : ', burnToken);
     console.log('Burnt Amount : ', burnAmount.toString());
-
+    await logNewBalance(burnToken, from);
+    
     const sourceToken: string = await lookupSourceTokenAddress(burnToken, targetChainId);
     
     console.log("Validators\'s signature %s\n", await getValidatorAllowanceSignature(validatorSourceChainWallet, sourceChainProvider, from, burnAmount, sourceToken, await sourceBridgeContract.governance()));
@@ -111,10 +110,7 @@ const handleReleaseEvent = async (event: any) => {
     console.log('Receiver : ', receiver);
     console.log('Released Token : ', releasedToken);
     console.log('Released Amount : ', releasedAmount.toString());
-    const releasedTokenContract = new hre.ethers.Contract(releasedToken, ERC20ABI.abi, sourceChainProvider);
-    const tokenName = await releasedTokenContract.name();
-    const newBalance = (await releasedTokenContract.balanceOf(receiver)).toString();
-    console.log('User\'s %s balance %d of \'%s\' token.\n', receiver, newBalance, tokenName);
+    await logNewBalance(releasedToken, receiver);
 }
 
 const deployWrappedTokenOnTargetChain = async (sourceToken: string): Promise<string> => {
@@ -148,4 +144,12 @@ const lookupSourceTokenAddress = async (targetToken:string, targetChainId: numbe
 
 main();
 
+
+async function logNewBalance(tokenAddress: string, userAddress: string) {
+    const mintTokenContract = new hre.ethers.Contract(tokenAddress, ERC20ABI.abi, targetChainProvider);
+    const tokenName = await mintTokenContract.name();
+    const newBalance = (await mintTokenContract.balanceOf(userAddress)).toString();
+    
+    console.log("User's %s new balance of '%s' is %d .\n", userAddress, tokenName, newBalance);
+}
 
