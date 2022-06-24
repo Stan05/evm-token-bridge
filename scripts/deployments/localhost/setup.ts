@@ -3,7 +3,8 @@ import { Contract } from "ethers";
 import { ethers } from "hardhat";
 
 async function setup() {
-    const bridgeContractName: string = "Bridge";
+    console.log(ethers.utils.parseEther("0.005"));
+    /*const bridgeContractName: string = "Bridge";
     const registryContractName: string = "Registry";
     const governanceContractName: string = "Governance";
     const wrappedTokenFactoryContractName: string = "WrappedTokenFactory"
@@ -22,7 +23,7 @@ async function setup() {
     await wrappedTokenFactory.transferOwnership(bridge.address);
     await feeCalculator.transferOwnership(bridge.address);
     
-    return bridge
+    return bridge*/
 }
 
 const deployContract = async (contractName: string, deployer: SignerWithAddress, ...args: any): Promise<Contract> => {
