@@ -5,10 +5,12 @@ import "./ERC20Token.sol";
 import "./Governance.sol";
 import "./Registry.sol";
 import "./WrappedTokenFactory.sol";
+import "./FeeCalculator.sol";
 
 contract Bridge {
     Governance public governance;
     WrappedTokenFactory public wrappedTokenFactory;
+    FeeCalculator public feeCalculator;
 
     event Lock(
         address indexed from,
@@ -28,9 +30,14 @@ contract Bridge {
 
     event Release(address indexed receiver, address token, uint amount);
 
-    constructor(address _governance, address _tokenFacory) {
+    constructor(
+        address _governance,
+        address _tokenFacory,
+        address _feeCalculator
+    ) {
         governance = Governance(_governance);
         wrappedTokenFactory = WrappedTokenFactory(_tokenFacory);
+        feeCalculator = FeeCalculator(_feeCalculator);
     }
 
     /**
@@ -62,15 +69,21 @@ contract Bridge {
     }
 
     /**
-     * @notice mints wrapped erc20 token
+     * @notice mints wrapped erc20 token,
+     * expects to receive service fee
+     * and accure that fee to the first validator that generated a valid signature
      */
     function mint(
         address _receiver,
         uint256 _amount,
         address payable _wrappedToken,
         bytes[] calldata _validatorsSignatures
-    ) external {
-        governance.validateAllowanceSignatures(
+    ) external payable {
+        require(
+            feeCalculator.serviceFee() == msg.value,
+            "Not enough service fee"
+        );
+        address[] memory _validators = governance.validateAllowanceSignatures(
             _receiver,
             _amount,
             _wrappedToken,
@@ -84,6 +97,8 @@ contract Bridge {
             "Wrapped Token is not existing"
         );
         wrappedTokenContract.mint(_receiver, _amount);
+
+        feeCalculator.accureFees(_validators[0]);
 
         emit Mint(_receiver, _wrappedToken, _amount);
     }
@@ -123,15 +138,21 @@ contract Bridge {
     }
 
     /**
-     * @notice releases locked erc20 tokens
+     * @notice releases locked erc20 tokens,
+     * expects to receive service fee
+     * and accure that fee to the first validator that generated a valid signature
      */
     function release(
         address _receiver,
         uint256 _amount,
         address payable _token,
         bytes[] calldata _validatorsSignatures
-    ) external {
-        governance.validateAllowanceSignatures(
+    ) external payable {
+        require(
+            feeCalculator.serviceFee() == msg.value,
+            "Not enough service fee"
+        );
+        address[] memory _validators = governance.validateAllowanceSignatures(
             _receiver,
             _amount,
             _token,
@@ -140,14 +161,33 @@ contract Bridge {
 
         ERC20Token(_token).transfer(msg.sender, _amount);
 
+        feeCalculator.accureFees(_validators[0]);
+
         emit Release(msg.sender, _token, _amount);
     }
 
+    /**
+     * @notice Creates a wrapped token on the chain,
+     * only if the transaction sender is registered validator
+     */
     function createToken(string calldata _name, string calldata _symbol)
         external
     {
         require(governance.hasAccess(msg.sender), "Validator not registered");
 
         wrappedTokenFactory.createToken(_name, _symbol);
+    }
+
+    /**
+     * @notice Claims the fees accumulated by the transaction sender,
+     * if't valid validator and has any fees accumulated
+     */
+    function claimFees() external {
+        require(governance.hasAccess(msg.sender), "Validator not registered");
+        uint256 _accumulatedFees = feeCalculator.accumulatedFees(msg.sender);
+        require(_accumulatedFees > 0, "No accumulated fees to claim");
+        bool _sent = payable(msg.sender).send(_accumulatedFees);
+        require(_sent, "Fees couldn't be claimed");
+        feeCalculator.claim(msg.sender);
     }
 }

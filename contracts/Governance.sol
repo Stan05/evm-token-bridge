@@ -64,7 +64,8 @@ contract Governance is Ownable {
         uint256 _amount,
         address payable _token,
         bytes[] memory _validatorsSignatures
-    ) external {
+    ) external returns (address[] memory _validators) {
+        _validators = new address[](_validatorsSignatures.length);
         for (uint i = 0; i < _validatorsSignatures.length; i++) {
             bytes memory sig = _validatorsSignatures[i];
             address _validatorAddress = _recoverFromAllowance(
@@ -77,6 +78,7 @@ contract Governance is Ownable {
                 registeredValidators[_validatorAddress],
                 "Unrecognized validator signature"
             );
+            _validators[i] = _validatorAddress;
         }
     }
 

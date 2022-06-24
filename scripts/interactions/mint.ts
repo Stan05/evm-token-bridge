@@ -1,7 +1,8 @@
 import 'dotenv/config'
+import { BigNumber } from 'ethers';
 import hre, { ethers } from 'hardhat';
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
-import ERC20TokenABI from '../../artifacts/contracts/ERC20Token.sol/ERC20Token.json';
+import FeeCalculatorABI from '../../artifacts/contracts/FeeCalculator.sol/FeeCalculator.json';
 
 const targetBridgeContractAddress = process.env.TARGET_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
 const targetChainProvider = new hre.ethers.providers.JsonRpcProvider(process.env.GANACHE_URL?.toString() ?? "");
@@ -11,6 +12,11 @@ const userPrivateKey = process.env.USER_PRIVATE_KEY?.toString() ?? "";
 
 async function main() {
     const userWallet = new hre.ethers.Wallet(userPrivateKey, targetChainProvider);
+    const feeCalculatorAddress: string = await targetBridgeContract.feeCalculator();
+    const feeCalculatorContract = new hre.ethers.Contract(feeCalculatorAddress, FeeCalculatorABI.abi, targetChainProvider);
+
+    const serviceFee: BigNumber = await feeCalculatorContract.serviceFee();
+    console.log('Service fee is %d', serviceFee);
 
     const receiverAddress: string = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
     const amount: number = 10;
@@ -23,11 +29,9 @@ async function main() {
                             amount, 
                             wrappedTokenAddress, 
                             signatures, 
-                            { gasPrice: ethers.utils.parseUnits('100', 'gwei'), gasLimit: 1000000 });
+                            { value: serviceFee, gasPrice: ethers.utils.parseUnits('100', 'gwei'), gasLimit: 1000000 });
     const receipt = await tx.wait();
-    console.log('Successful mint')
-    /*const mintTokenContract = new hre.ethers.Contract("0xa16E02E87b7454126E5E10d957A927A7F5B5d2be", ERC20TokenABI.abi, targetChainProvider);
-    console.log(await mintTokenContract.balanceOf(userWallet.getAddress()));*/
+    console.log('Successful mint');
 }
 
 main();

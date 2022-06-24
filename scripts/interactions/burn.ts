@@ -1,8 +1,6 @@
-import { keccak256 } from '@ethersproject/keccak256';
 import { StaticJsonRpcProvider } from '@ethersproject/providers';
 import 'dotenv/config'
 import { Contract, ethers } from 'ethers';
-import { hexlify } from 'ethers/lib/utils';
 import hre from 'hardhat';
 import BridgeABI from '../../artifacts/contracts/Bridge.sol/Bridge.json';
 import ERC20TokenABI from '../../artifacts/contracts/ERC20Token.sol/ERC20Token.json';
@@ -37,8 +35,6 @@ async function main() {
     const receipt = await tx.wait();
 
     console.log('Successful burn');
-    /*const mintTokenContract = new hre.ethers.Contract("0xa16E02E87b7454126E5E10d957A927A7F5B5d2be", ERC20TokenABI.abi, targetChainProvider);
-    console.log(await mintTokenContract.balanceOf(userWallet.getAddress()));*/
 }
 
 main();

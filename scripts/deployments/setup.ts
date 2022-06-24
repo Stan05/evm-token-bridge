@@ -8,16 +8,19 @@ async function setup() {
     const governanceContractName: string = "Governance";
     const wrappedTokenFactoryContractName: string = "WrappedTokenFactory"
     const erc20TokenContractName: string = "ERC20Token";
+    const feeCalculatorContractName: string = "FeeCalculator";
     const [deployer, validator, user]: SignerWithAddress[] = await ethers.getSigners();
     
     const governance: Contract = await deployContract(governanceContractName, deployer, [validator.address]);
     const wrappedTokenFactory: Contract = await deployContract(wrappedTokenFactoryContractName, deployer);
-    const bridge: Contract = await deployContract(bridgeContractName, deployer, governance.address, wrappedTokenFactory.address);
+    const feeCalculator: Contract = await deployContract(feeCalculatorContractName, deployer, ethers.utils.parseEther("0.005"));
+    const bridge: Contract = await deployContract(bridgeContractName, deployer, governance.address, wrappedTokenFactory.address, feeCalculator.address);
     const erc20Token: Contract = await deployContract(erc20TokenContractName, deployer, "Token", "TKN", deployer.address);
     const registry: Contract = await deployContract(registryContractName, deployer);
     
     await governance.transferOwnership(bridge.address);
     await wrappedTokenFactory.transferOwnership(bridge.address);
+    await feeCalculator.transferOwnership(bridge.address);
     
     return bridge
 }

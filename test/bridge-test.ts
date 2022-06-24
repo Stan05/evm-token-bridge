@@ -5,6 +5,7 @@ import BridgeABI from "../artifacts/contracts/Bridge.sol/Bridge.json";
 import ERC20TokenABI from "../artifacts/contracts/ERC20Token.sol/ERC20Token.json";
 import WrappedTokenFactoryABI from "../artifacts/contracts/WrappedTokenFactory.sol/WrappedTokenFactory.json";
 import GovernanceABI from "../artifacts/contracts/Governance.sol/Governance.json";
+import FeeCalculatorABI from "../artifacts/contracts/FeeCalculator.sol/FeeCalculator.json";
 import { getUserPermit, getValidatorAllowanceSignature } from "./helper/helper-functions";
 import { deployContract, MockProvider } from "ethereum-waffle";
 import { getAddress } from "ethers/lib/utils";
@@ -15,16 +16,21 @@ describe("Bridge", function () {
   let bridge: Contract;
   let erc20Token: Contract;
   let wrappedErc20Token: Contract;
+  let feeCalculator: Contract;
 
   let validator: Wallet;
   let validator2: Wallet;
   let unregisteredValidator: Wallet;
   let user: Wallet;
   let deployer: Wallet;
+  const serviceFee: BigNumber = ethers.utils.parseEther("0.005");
 
   before(async function () {
     provider = new MockProvider();
     [deployer, validator, validator2, user, unregisteredValidator] = provider.getWallets();
+
+    feeCalculator = await deployContract(deployer, FeeCalculatorABI, [serviceFee]); 
+    await feeCalculator.deployed();
 
     governance = await deployContract(deployer, GovernanceABI, [[validator.address, validator2.address]]);
     await governance.deployed();
@@ -32,12 +38,13 @@ describe("Bridge", function () {
     const wrappedTokenFactory: Contract = await deployContract(deployer, WrappedTokenFactoryABI, []);
     await wrappedTokenFactory.deployed();
 
-    bridge = await deployContract(deployer, BridgeABI, [governance.address, wrappedTokenFactory.address]);
+    bridge = await deployContract(deployer, BridgeABI, [governance.address, wrappedTokenFactory.address, feeCalculator.address]);
     await bridge.deployed();
     
     await governance.transferOwnership(bridge.address);
     await wrappedTokenFactory.transferOwnership(bridge.address);
-    
+    await feeCalculator.transferOwnership(bridge.address);
+
     erc20Token = await deployContract(deployer, ERC20TokenABI, ["Token", "TKN", deployer.address]); 
     await erc20Token.deployed(); 
 
@@ -101,10 +108,21 @@ describe("Bridge", function () {
       const wrappedTokenAddress: string = wrappedErc20Token.address;
       const signatures: string[] = [];
       signatures.push(await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, governance));
-      
-      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures))
+
+      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, {value: serviceFee}))
         .to.emit(bridge, 'Mint')
         .withArgs(receiverAddress, wrappedTokenAddress, amount);
+    });
+
+    it("Should not allow mint with not enough fee", async function () { 
+      const receiverAddress: string = await user.getAddress();
+      const amount: number = 10;
+      const wrappedTokenAddress: string = wrappedErc20Token.address;
+      const signatures: string[] = [];
+      signatures.push(await getValidatorAllowanceSignature(unregisteredValidator, receiverAddress, amount, wrappedTokenAddress, governance));
+      
+      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, {value: serviceFee.sub(1)}))
+        .to.be.revertedWith('Not enough service fee');
     });
     
     it("Should not allow mint with unrecognized validator", async function () { 
@@ -114,7 +132,7 @@ describe("Bridge", function () {
       const signatures: string[] = [];
       signatures.push(await getValidatorAllowanceSignature(unregisteredValidator, receiverAddress, amount, wrappedTokenAddress, governance));
       
-      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures))
+      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, {value: serviceFee}))
         .to.be.revertedWith('Unrecognized validator signature');
     });
 
@@ -125,10 +143,10 @@ describe("Bridge", function () {
       const signatures: string[] = [];
       signatures.push(await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, governance));
       
-      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures))
+      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, {value: serviceFee}))
         .to.emit(bridge, 'Mint')
         .withArgs(receiverAddress, wrappedTokenAddress, amount);
-      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures))
+      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, {value: serviceFee}))
         .to.be.revertedWith('Unrecognized validator signature');
     });
 
@@ -140,7 +158,7 @@ describe("Bridge", function () {
       const sig = await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, governance);
       signatures.push(sig);
   
-      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures))
+      await expect(bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, {value: serviceFee}))
         .to.be.revertedWith('Wrapped Token is not existing');
     });
   });
@@ -201,10 +219,21 @@ describe("Bridge", function () {
       
       const initialBalance: BigNumber = await erc20Token.balanceOf(userAddress);
       await erc20Token.mint(bridge.address, amount);
-      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures))
+      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures, {value: serviceFee}))
         .to.emit(bridge, 'Release')
         .withArgs(userAddress, tokenAddress, amount);
       expect(await erc20Token.balanceOf(userAddress)).to.equal(initialBalance.add(amount));
+    });
+
+    it("Should not allow release with not enough fee", async function () { 
+      const tokenAddress: string = erc20Token.address;
+      const amount: number = 10;
+      const userAddress: string = await user.getAddress();
+      const signatures: string[] = [];
+      signatures.push(await getValidatorAllowanceSignature(validator, userAddress, amount, tokenAddress, governance));
+
+      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures, {value: serviceFee.sub(1)}))
+        .to.be.revertedWith('Not enough service fee');  
     });
 
     it('Should not allow multiple mints with one signature',async () => {
@@ -214,10 +243,10 @@ describe("Bridge", function () {
       const signatures: string[] = [];
       signatures.push(await getValidatorAllowanceSignature(validator, userAddress, amount, tokenAddress, governance));
       
-      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures))
+      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures, {value: serviceFee}))
         .to.emit(bridge, 'Release')
         .withArgs(userAddress, tokenAddress, amount);
-      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures))
+      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures, {value: serviceFee}))
         .to.be.revertedWith('Unrecognized validator signature');  
     });
     
@@ -228,7 +257,7 @@ describe("Bridge", function () {
       const signatures: string[] = [];
       signatures.push(await getValidatorAllowanceSignature(unregisteredValidator, userAddress, amount, tokenAddress, governance));
       
-      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures))
+      await expect(bridge.connect(user).release(userAddress, amount, tokenAddress, signatures, {value: serviceFee}))
         .to.be.revertedWith('Unrecognized validator signature');
     });
   });
@@ -254,6 +283,35 @@ describe("Bridge", function () {
 
       await expect(bridge.connect(user).createToken(wrappedTokenName, wrappedTokenSymbol))
         .to.be.revertedWith('Validator not registered');
+    });
+  });
+
+  describe('Claim Fees', function(){
+
+    it('Should claim fees', async () => { 
+      // sending a mint transaction, validator should have accumulated fee after it
+      const receiverAddress: string = await user.getAddress();
+      const amount: number = 10;
+      const wrappedTokenAddress: string = wrappedErc20Token.address;
+      const signatures: string[] = [];
+      signatures.push(await getValidatorAllowanceSignature(validator, receiverAddress, amount, wrappedTokenAddress, governance));
+      await bridge.connect(user).mint(receiverAddress, amount, wrappedTokenAddress, signatures, {value: serviceFee})
+
+      // claiming the accumulated fee
+      const accumulatedFees: BigNumber = await feeCalculator.accumulatedFees(validator.address);
+      await expect(bridge.connect(validator).claimFees())
+        .to.emit(feeCalculator, "Claim")
+        .withArgs(validator.address, accumulatedFees)
+    });
+
+    it('Should not allow claim fees when there are not any accumulated', async () => {       
+      await expect(bridge.connect(validator).claimFees())
+        .to.be.revertedWith("No accumulated fees to claim")
+    });
+
+    it('Should not allow calim fees with unrecognized validator', async () => {     
+      await expect(bridge.connect(unregisteredValidator).claimFees())
+        .to.be.revertedWith("Validator not registered")
     });
   });
 });

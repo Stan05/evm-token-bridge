@@ -33,7 +33,8 @@ const sourceRegistryContract: Contract = new hre.ethers.Contract(sourceRegistryC
 
 async function main() {
     const blockNumber = await sourceChainProvider.send("eth_blockNumber", []);
-    
+    await logNewBalance("0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9", "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc");
+    /*
     const sourceChainLockFilter = {
         address: sourceBridgeContract.address,
         fromBlock: blockNumber, // get the block number 
@@ -46,7 +47,7 @@ async function main() {
     targetChainProvider.on(targetBridgeContract.filters.Mint(), handleMintEvent);
 
     targetChainProvider.on(targetBridgeContract.filters.Burn(), handleBurnEvent);
-    sourceChainProvider.on(sourceBridgeContract.filters.Release(), handleReleaseEvent);
+    sourceChainProvider.on(sourceBridgeContract.filters.Release(), handleReleaseEvent);*/
 }
 
 const handleLockEvent = async (event: { data: any; topics: string[]; blockNumber: any; }) => {
