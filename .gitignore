@@ -8,3 +8,6 @@ typechain
 cache
 artifacts
 
+# next.js
+.next/
+out/
