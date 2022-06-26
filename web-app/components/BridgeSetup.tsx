@@ -115,25 +115,21 @@ const Bridge = ({
         "Sending bridge lock transaction from chain %d and token %s with amount %f to chain %d",
         bridgeFormData.sourceChain,
         bridgeFormData.sourceToken,
-        bridgeFormData.bridgeAmount,
+        bridgeFormData.bridgeAmountInput,
         bridgeFormData.targetChain
       );
-      const normalizedAmount =
-        bridgeFormData.bridgeAmount *
-        (10 ^ selectedSourceTokenDetails.decimals);
-
       await getUserPermit(
         account,
         sourceBridge.address,
         sourceTokenContract,
         window.ethereum,
-        normalizedAmount
+        bridgeFormData.bridgeAmount
       ).then(async (signature) => {
         await sourceBridge
           .lock(
             bridgeFormData.targetChain,
             bridgeFormData.sourceToken,
-            normalizedAmount,
+            bridgeFormData.bridgeAmount,
             signature.deadline,
             signature.v,
             signature.r,
@@ -144,7 +140,8 @@ const Bridge = ({
             setHasBridgingStarted(true);
             setBridgeTxHash(tx.hash);
           })
-          .catch(() => {
+          .catch((error) => {
+            console.log("Failed");
             setHasBridgingStarted(false);
           });
       });
@@ -225,13 +222,20 @@ const Bridge = ({
             </p>
           )}
           <NumberFormat
-            value={bridgeFormData?.bridgeAmount?.toString()}
-            onValueChange={(value) =>
-              setBridgeFormData({
-                ...bridgeFormData,
-                bridgeAmount: value.floatValue,
-              })
-            }
+            value={bridgeFormData?.bridgeAmountInput}
+            onValueChange={(value, source) => {
+              if (source.event) {
+                setBridgeFormData({
+                  ...bridgeFormData,
+                  bridgeAmountInput: value.floatValue,
+                  bridgeAmount: BigNumber.from(value?.floatValue ?? 0).mul(
+                    BigNumber.from(10).pow(
+                      selectedSourceTokenDetails?.decimals ?? 18
+                    )
+                  ),
+                });
+              }
+            }}
             allowNegative={false}
             thousandSeparator={true}
             className="some"

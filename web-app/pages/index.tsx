@@ -2,8 +2,10 @@ import { useWeb3React } from "@web3-react/core";
 import Head from "next/head";
 import Link from "next/link";
 import Account from "../components/Account";
-import ServiceFee from "../components/FeeCalculators";
+import Bridge from "../components/Bridge";
+import FeeCalculator from "../components/FeeCalculator";
 import NativeCurrencyBalance from "../components/NativeCurrencyBalance";
+import TransactionHistory from "../components/TransactionHistory";
 import useEagerConnect from "../hooks/useEagerConnect";
 
 
@@ -40,9 +42,11 @@ function Home() {
         </h1>
 
         {isConnected && (
-          <section>
+          <section className="main-header">
             <NativeCurrencyBalance />
-            <ServiceFee />
+            <FeeCalculator />
+            <Bridge></Bridge>
+            <TransactionHistory></TransactionHistory>
           </section>
         )}
       </main>

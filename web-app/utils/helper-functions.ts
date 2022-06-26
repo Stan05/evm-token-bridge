@@ -16,7 +16,7 @@ const getUserPermit = async (
   spender: string,
   tokenContract: Contract,
   provider: any,
-  permitAmount: number
+  permitAmount: BigNumber
 ) => {
   const nonce = await tokenContract.nonces(userAddress);
   const deadline = +new Date() + 60 * 60;
@@ -47,7 +47,7 @@ const getUserPermit = async (
   const message = {
     owner: userAddress,
     spender: spender,
-    value: permitAmount,
+    value: permitAmount.toString(),
     nonce: nonce.toHexString(),
     deadline,
   };
