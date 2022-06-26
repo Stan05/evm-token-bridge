@@ -6,8 +6,9 @@ import "./Governance.sol";
 import "./Registry.sol";
 import "./WrappedTokenFactory.sol";
 import "./FeeCalculator.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Bridge {
+contract Bridge is Ownable {
     Governance public governance;
     WrappedTokenFactory public wrappedTokenFactory;
     FeeCalculator public feeCalculator;
@@ -32,11 +33,35 @@ contract Bridge {
 
     constructor(
         address _governance,
-        address _tokenFacory,
+        address _wrappedTokenFactory,
         address _feeCalculator
     ) {
         governance = Governance(_governance);
-        wrappedTokenFactory = WrappedTokenFactory(_tokenFacory);
+        wrappedTokenFactory = WrappedTokenFactory(_wrappedTokenFactory);
+        feeCalculator = FeeCalculator(_feeCalculator);
+    }
+
+    /**
+     * @notice updates the governance that is being used by the bridge
+     */
+    function setGovernance(address _governance) external onlyOwner {
+        governance = Governance(_governance);
+    }
+
+    /**
+     * @notice updates the wrapped token factory that is being used by the bridge
+     */
+    function setWrappedTokenFactory(address _wrappedTokenFactory)
+        external
+        onlyOwner
+    {
+        wrappedTokenFactory = WrappedTokenFactory(_wrappedTokenFactory);
+    }
+
+    /**
+     * @notice updates the fee calculator that is being used by the bridge
+     */
+    function setFeeCalculator(address _feeCalculator) external onlyOwner {
         feeCalculator = FeeCalculator(_feeCalculator);
     }
 
