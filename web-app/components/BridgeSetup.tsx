@@ -10,10 +10,7 @@ import { SelectSearchOption } from "react-select-search";
 import SelectSearch from "react-select-search";
 import NumberFormat from "react-number-format";
 import useBridgeContract from "../hooks/useBridgeContract";
-import {
-  getUserPermit,
-  tryGetContractAddress,
-} from "../utils/helper-functions";
+import { getUserPermit } from "../utils/helper-functions";
 import { BigNumber, Contract, ethers } from "ethers";
 import ERC20Token_ABI from "../contracts/ERC20Token.json";
 import { BridgeFormData } from "./Bridge";
@@ -39,7 +36,7 @@ const Bridge = ({
     library,
   } = useWeb3React<Web3Provider>();
   const sourceBridge = useBridgeContract();
-  // -------------  BRIDGE SETUP START --------------- //
+
   // Bridge Inputs Data
   const [supportedSourceChains, setSupportedSourceChains] = useState<
     SelectSearchOption[]
@@ -51,8 +48,6 @@ const Bridge = ({
     SelectSearchOption[]
   >([]);
 
-  // -------------  BRIDGE SETUP END --------------- //
-
   // Bridge State
   const [sourceTokenContract, setSourceTokenContract] = useState<Contract>();
   const [availabeSourceTokenAmount, setAvailableSourceTokenAmount] =
@@ -62,7 +57,6 @@ const Bridge = ({
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
 
   const initializeInputData = async (chainId: number) => {
-    //setSourceChain(chainId);
     setBridgeFormData({
       ...bridgeFormData,
       sourceChain: chainId,
@@ -141,7 +135,7 @@ const Bridge = ({
             setBridgeTxHash(tx.hash);
           })
           .catch((error) => {
-            console.log("Failed");
+            console.log("Tx Failed");
             setHasBridgingStarted(false);
           });
       });

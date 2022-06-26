@@ -1,26 +1,14 @@
 import { Web3Provider } from "@ethersproject/providers";
 import { useWeb3React } from "@web3-react/core";
 import { useEffect, useState } from "react";
-import {
-  BridgeSupportedChain,
-  bridgeSupportedChains,
-  BridgeSupportedToken,
-} from "../constants/networks";
-import { SelectSearchOption } from "react-select-search";
-import SelectSearch from "react-select-search";
-import NumberFormat from "react-number-format";
 import useBridgeContract from "../hooks/useBridgeContract";
-import {
-  getUserPermit,
-  tryGetContractAddress,
-} from "../utils/helper-functions";
+import { tryGetContractAddress } from "../utils/helper-functions";
 import { BigNumber, Contract, ethers } from "ethers";
-import ERC20Token_ABI from "../contracts/ERC20Token.json";
-import BRIDGE_ABI from "../contracts/Bridge.json";
 import { useInterval } from "use-interval";
 import { formatEtherscanLink, shortenHex } from "../util";
 import { BRIDGE } from "../constants";
 import useFeeCalculatorContract from "../hooks/useFeeCalculatorContract";
+import axios from "axios";
 
 interface BridgeStartedInterface {
   targetChain: number;
@@ -49,24 +37,21 @@ const BridgeStarted = ({
   );
   const targetBridge = useBridgeContract(targetBridgeAddress);
 
-  const [isMintTxClaimable, setIsMintTxClaimable] = useState<boolean>(false);
+  const [areTokensClaimable, setAreTokensClaimable] = useState<boolean>(false);
+  const [isBridgingTxMined, setIsBridgingTxMined] = useState<boolean>(false);
   const [claimTxHash, setClaimTxHash] = useState<string>();
+  const [targetToken, setTargetToken] = useState<string>();
+  const [validatorSignatures, setValidatorSignatures] = useState<string[]>([]);
 
   const claimBridgeTransaction = async () => {
     await targetBridge
-      .mint(
-        account,
-        bridgeAmount,
-        "0x87731fDC857708b8974E28Aada134AA9affe9f85", //TODO: Validator to give me that and the signatures
-        [
-          "0x52f4eec5352b87a1c4c5f95ec1f59ffb4049bf0daa542414e277c8180dae96cf2c62109001e62c3bb2b786d28d7c205e6bbdec66eeab418e07e658a8669f3e4a1b",
-        ],
-        { value: ethers.utils.parseEther("0.005") }
-      )
+      .mint(account, bridgeAmount, targetToken, validatorSignatures, {
+        value: ethers.utils.parseEther("0.005"),
+      })
       .then((result) => {
         console.log("Success mint ", result);
         setClaimTxHash(result.hash);
-        setIsMintTxClaimable(false);
+        setAreTokensClaimable(false);
         setHasBridgingStarted(false);
       })
       .catch((error) => {
@@ -86,22 +71,36 @@ const BridgeStarted = ({
   };
 
   useEffect(() => {
-    if (isMintTxClaimable) {
+    if (areTokensClaimable) {
       requestNetworkSwitch(targetChain);
     }
-  }, [isMintTxClaimable]);
+  }, [areTokensClaimable]);
 
   useInterval(async () => {
-    if (bridgeTxHash && !isMintTxClaimable) {
+    if (bridgeTxHash && !isBridgingTxMined) {
+      // check is the tx is mined
       console.log("Bridging started, polling for tx mined");
       const isTxMined = await isTransactionMined(bridgeTxHash);
-      setIsMintTxClaimable(isTxMined);
+      setIsBridgingTxMined(isTxMined);
+    }
+    if (isBridgingTxMined && !areTokensClaimable) {
+      // after tx is mined, waits for validator signatures
+      axios
+        .get("http://localhost:8080/validator/lock/" + bridgeTxHash)
+        .then((response) => {
+          if (response?.data?.signatures) {
+            console.log("Received signature");
+            setValidatorSignatures(response.data.signatures);
+            setTargetToken(response.data.targetToken);
+            setAreTokensClaimable(true);
+          }
+        });
     }
   }, 1000);
 
   return (
     <div className="bridge-started">
-      {!isMintTxClaimable ? (
+      {!areTokensClaimable ? (
         <p className="waiting">Waiting for your transaction to be mined.</p>
       ) : (
         <p>You can claim your tokens after you connect to the target chain.</p>
@@ -143,7 +142,7 @@ const BridgeStarted = ({
         </p>
       )}
       <button
-        //disabled={!isBridgTxClaimable}
+        disabled={!areTokensClaimable}
         onClick={() => claimBridgeTransaction()}
       >
         Claim

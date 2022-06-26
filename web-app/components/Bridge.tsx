@@ -1,25 +1,7 @@
 import { Web3Provider } from "@ethersproject/providers";
 import { useWeb3React } from "@web3-react/core";
-import { useEffect, useState } from "react";
-import {
-  BridgeSupportedChain,
-  bridgeSupportedChains,
-  BridgeSupportedToken,
-} from "../constants/networks";
-import { SelectSearchOption } from "react-select-search";
-import SelectSearch from "react-select-search";
-import NumberFormat from "react-number-format";
-import useBridgeContract from "../hooks/useBridgeContract";
-import {
-  getUserPermit,
-  tryGetContractAddress,
-} from "../utils/helper-functions";
-import { BigNumber, Contract, ethers } from "ethers";
-import ERC20Token_ABI from "../contracts/ERC20Token.json";
-import BRIDGE_ABI from "../contracts/Bridge.json";
-import { useInterval } from "use-interval";
-import { formatEtherscanLink, shortenHex } from "../util";
-import { BRIDGE } from "../constants";
+import { useState } from "react";
+import { BigNumber } from "ethers";
 import BridgeStarted from "./BridgeStarted";
 import BridgeSetup from "./BridgeSetup";
 
@@ -51,14 +33,21 @@ const Bridge = () => {
     if (!window.ethereum) throw new Error("No wallet found");
     if (selectedNetwork !== connectedChain) {
       try {
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: `0x${Number(selectedNetwork).toString(16)}` }],
-        });
-        setBridgeFormData({
-          ...bridgeFormData,
-          sourceChain: selectedNetwork,
-        });
+        await window.ethereum
+          .request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${Number(selectedNetwork).toString(16)}` }],
+          })
+          .catch((error) => {
+            console.log(error);
+            setHasBridgingStarted(false);
+          })
+          .finally(() => {
+            setBridgeFormData({
+              ...bridgeFormData,
+              sourceChain: selectedNetwork,
+            });
+          });
       } catch (switchError) {
         // This error code indicates that the chain has not been added to MetaMask.
         if (switchError.code === 4902) {
