@@ -6,7 +6,7 @@ import { useWeb3React } from "@web3-react/core";
 import { REGISTRY } from "../constants";
 import { tryGetContractAddress } from "../utils/helper-functions";
 
-export default function useRegistruContract(contractAddress?: string) {
+export default function useRegistryContract(contractAddress?: string) {
   if (!contractAddress) {
     const { chainId } = useWeb3React<Web3Provider>();
     const registryAddress: string = tryGetContractAddress(chainId, REGISTRY);

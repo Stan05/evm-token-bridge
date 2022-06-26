@@ -13,7 +13,8 @@ import useBridgeContract from "../hooks/useBridgeContract";
 import { getUserPermit } from "../utils/helper-functions";
 import { BigNumber, Contract, ethers } from "ethers";
 import ERC20Token_ABI from "../contracts/ERC20Token.json";
-import { BridgeFormData } from "./Bridge";
+import { BridgeFormData, BridgeTxType } from "./Bridge";
+import useWrappedTokenFactory from "../hooks/useWrappedTokenFactory";
 
 interface BridgeStartedInterface {
   bridgeFormData: BridgeFormData;
@@ -36,6 +37,7 @@ const Bridge = ({
     library,
   } = useWeb3React<Web3Provider>();
   const sourceBridge = useBridgeContract();
+  const sourceWrappedTokenFactory = useWrappedTokenFactory();
 
   // Bridge Inputs Data
   const [supportedSourceChains, setSupportedSourceChains] = useState<
@@ -83,10 +85,6 @@ const Bridge = ({
   };
 
   const handleSourceTokenChanged = async (sourceToken) => {
-    setBridgeFormData({
-      ...bridgeFormData,
-      sourceToken: sourceToken,
-    });
     const tokenContract: Contract = new Contract(
       sourceToken,
       ERC20Token_ABI.abi,
@@ -100,6 +98,13 @@ const Bridge = ({
       symbol: await tokenContract.symbol(),
       address: tokenContract.address,
       decimals: await tokenContract.decimals(),
+    });
+    setBridgeFormData({
+      ...bridgeFormData,
+      bridgeTxType: isWrappedTokenSelected(sourceToken)
+        ? BridgeTxType.BURN
+        : BridgeTxType.LOCK,
+      sourceToken: sourceToken,
     });
   };
 
@@ -140,6 +145,15 @@ const Bridge = ({
           });
       });
     }
+  };
+
+  const isWrappedTokenSelected = async (
+    sourceToken: string
+  ): Promise<boolean> => {
+    return (
+      (await sourceWrappedTokenFactory.lookupTokenContract(sourceToken)) !=
+      undefined
+    );
   };
 
   useEffect(() => {

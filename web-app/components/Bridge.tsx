@@ -5,12 +5,18 @@ import { BigNumber } from "ethers";
 import BridgeStarted from "./BridgeStarted";
 import BridgeSetup from "./BridgeSetup";
 
+export enum BridgeTxType {
+  LOCK,
+  BURN,
+}
+
 export type BridgeFormData = {
   sourceChain: number;
   targetChain: number;
   sourceToken: string;
   bridgeAmount: BigNumber;
   bridgeAmountInput: number;
+  bridgeTxType: BridgeTxType;
 };
 
 const initialState: BridgeFormData = {
@@ -19,6 +25,7 @@ const initialState: BridgeFormData = {
   sourceToken: undefined,
   bridgeAmount: undefined,
   bridgeAmountInput: undefined,
+  bridgeTxType: undefined,
 };
 
 const Bridge = () => {
@@ -82,8 +89,7 @@ const Bridge = () => {
         ></BridgeSetup>
       ) : (
         <BridgeStarted
-          targetChain={bridgeFormData.targetChain}
-          bridgeAmount={bridgeFormData.bridgeAmount}
+          bridgeFormData={bridgeFormData}
           bridgeTxHash={lockTxHash}
           requestNetworkSwitch={requestNetworkSwitch}
           setHasBridgingStarted={(value) => {

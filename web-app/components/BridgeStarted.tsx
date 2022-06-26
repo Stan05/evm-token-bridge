@@ -9,18 +9,17 @@ import { formatEtherscanLink, shortenHex } from "../util";
 import { BRIDGE } from "../constants";
 import useFeeCalculatorContract from "../hooks/useFeeCalculatorContract";
 import axios from "axios";
+import { BridgeFormData } from "./Bridge";
 
 interface BridgeStartedInterface {
-  targetChain: number;
-  bridgeAmount: BigNumber;
+  bridgeFormData: BridgeFormData;
   bridgeTxHash: string;
   requestNetworkSwitch: (chainId: number) => void;
   setHasBridgingStarted: (chainId: boolean) => void;
 }
 
 const BridgeStarted = ({
-  targetChain,
-  bridgeAmount,
+  bridgeFormData,
   bridgeTxHash,
   requestNetworkSwitch,
   setHasBridgingStarted,
@@ -32,7 +31,7 @@ const BridgeStarted = ({
   } = useWeb3React<Web3Provider>();
   useFeeCalculatorContract();
   const targetBridgeAddress: string = tryGetContractAddress(
-    targetChain,
+    bridgeFormData.targetChain,
     BRIDGE
   );
   const targetBridge = useBridgeContract(targetBridgeAddress);
@@ -45,9 +44,15 @@ const BridgeStarted = ({
 
   const claimBridgeTransaction = async () => {
     await targetBridge
-      .mint(account, bridgeAmount, targetToken, validatorSignatures, {
-        value: ethers.utils.parseEther("0.005"),
-      })
+      .mint(
+        account,
+        bridgeFormData.bridgeAmount,
+        targetToken,
+        validatorSignatures,
+        {
+          value: ethers.utils.parseEther("0.005"),
+        }
+      )
       .then((result) => {
         console.log("Success mint ", result);
         setClaimTxHash(result.hash);
@@ -72,7 +77,7 @@ const BridgeStarted = ({
 
   useEffect(() => {
     if (areTokensClaimable) {
-      requestNetworkSwitch(targetChain);
+      requestNetworkSwitch(bridgeFormData.targetChain);
     }
   }, [areTokensClaimable]);
 
