@@ -1,6 +1,9 @@
 import { Express, Request, Response } from "express";
+import { TransactionType } from "../repository/models/transaction";
 import ValidatorRepository from "../repository/validator-repository";
+
 const validatorRepository: ValidatorRepository = new ValidatorRepository();
+
 export default async (app: Express) => {
   app.get(
     "/validator/lock/:txHash",
@@ -8,7 +11,27 @@ export default async (app: Express) => {
       try {
         res.status(200);
         return res.json(
-          await validatorRepository.GetLockTransaction(req.params.txHash)
+          await validatorRepository.GetTransaction(
+            req.params.txHash,
+            TransactionType.LOCK
+          )
+        );
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  app.get(
+    "/validator/burn/:txHash",
+    async (req: Request, res: Response, next) => {
+      try {
+        res.status(200);
+        return res.json(
+          await validatorRepository.GetTransaction(
+            req.params.txHash,
+            TransactionType.BURN
+          )
         );
       } catch (err) {
         next(err);

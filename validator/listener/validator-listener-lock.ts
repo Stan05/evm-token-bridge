@@ -6,7 +6,7 @@ import GovernanceABI from "../abis/Governance.json";
 import RegistryABI from "../abis/Registry.json";
 import ERC20ABI from "../abis/ERC20Token.json";
 import ValidatorRepository from "../repository/validator-repository";
-import { LockTransaction } from "../repository/models/lock-transaction";
+import { Transaction, TransactionType } from "../repository/models/transaction";
 import { getValidatorAllowanceSignature } from "./utils";
 dotenv.config();
 
@@ -73,8 +73,10 @@ const listenForLockEvents = async () => {
  */
 async function handleLockEvent(event: any) {
   if (
-    (await validatorRepository.GetLockTransaction(event.transactionHash)) ==
-    null
+    (await validatorRepository.GetTransaction(
+      event.transactionHash,
+      TransactionType.LOCK
+    )) == null
   ) {
     console.log("--------------Lock Event--------------");
     const decodedData = ethers.utils.defaultAbiCoder.decode(
@@ -103,8 +105,9 @@ async function handleLockEvent(event: any) {
       targetToken,
       governance
     );
-    const lockTransaction: LockTransaction = {
+    const lockTransaction: Transaction = {
       txHash: event.transactionHash,
+      txType: TransactionType.LOCK,
       from: from,
       targetChainid: targetChainId,
       lockedAmount: lockedAmount,
@@ -112,7 +115,7 @@ async function handleLockEvent(event: any) {
       targetToken: targetToken,
       signatures: [signature],
     };
-    await validatorRepository.CreateLockTransaction(lockTransaction);
+    await validatorRepository.CreateTransaction(lockTransaction);
   } else {
     console.log(
       "Received Event that already has an entry ",

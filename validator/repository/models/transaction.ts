@@ -1,8 +1,14 @@
-import { BigNumber, BytesLike } from "ethers";
+import { BigNumber } from "ethers";
 import mongoose from "mongoose";
 
-interface LockTransaction {
+enum TransactionType {
+  BURN,
+  LOCK,
+}
+
+interface Transaction {
   txHash: String;
+  txType: TransactionType;
   from: String;
   targetChainid: number;
   lockedAmount: BigNumber;
@@ -11,8 +17,9 @@ interface LockTransaction {
   signatures?: String[];
 }
 
-const LockTransactionSchema = new mongoose.Schema<LockTransaction>({
+const TransactionSchema = new mongoose.Schema<Transaction>({
   txHash: { type: String, required: true },
+  txType: { type: Number, enum: TransactionType, required: true },
   from: { type: String, required: true },
   targetChainid: { type: Number, required: true },
   lockedAmount: { type: String, required: true },
@@ -20,9 +27,6 @@ const LockTransactionSchema = new mongoose.Schema<LockTransaction>({
   signatures: [String],
 });
 
-const LockTransactionModel = mongoose.model(
-  "LockTransaction",
-  LockTransactionSchema
-);
+const TransactionModel = mongoose.model("Transaction", TransactionSchema);
 
-export { LockTransaction, LockTransactionModel };
+export { TransactionType, Transaction, TransactionModel };

@@ -1,14 +1,15 @@
 import {
-  LockTransaction,
-  LockTransactionModel,
-} from "./models/lock-transaction";
+  Transaction,
+  TransactionModel,
+  TransactionType,
+} from "./models/transaction";
 
 //Dealing with data base operations
 class ValidatorRepository {
-  async CreateLockTransaction(lockTransaction: LockTransaction) {
+  async CreateTransaction(lockTransaction: Transaction) {
     try {
-      console.log("Saving Lock Transaction", lockTransaction);
-      const lockTransactionModel = new LockTransactionModel(lockTransaction);
+      console.log("Saving Transaction", lockTransaction);
+      const lockTransactionModel = new TransactionModel(lockTransaction);
       const lockTransactionResult = await lockTransactionModel.save();
       return lockTransactionResult;
     } catch (err) {
@@ -17,12 +18,13 @@ class ValidatorRepository {
     }
   }
 
-  async GetLockTransaction(txHash: string) {
+  async GetTransaction(txHash: string, txType: TransactionType) {
     try {
-      const existingLockTransaction = await LockTransactionModel.findOne({
+      const existingLockTransaction = await TransactionModel.findOne({
         txHash: txHash,
+        txType: txType,
       });
-      console.log("Get Lock Tx", existingLockTransaction);
+      console.log("Get %s Tx %s", txType, existingLockTransaction);
       return existingLockTransaction;
     } catch (err) {
       throw new Error("Unable to Create Lock Transaction");
