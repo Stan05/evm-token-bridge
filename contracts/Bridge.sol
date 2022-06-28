@@ -7,6 +7,7 @@ import "./Registry.sol";
 import "./WrappedTokenFactory.sol";
 import "./FeeCalculator.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Bridge is Ownable {
     Governance public governance;
@@ -66,9 +67,9 @@ contract Bridge is Ownable {
     }
 
     /**
-     * @notice locks the non-native erc20 tokens
+     * @notice locks with permit the non-native erc20 tokens
      */
-    function lock(
+    function lockWithPermit(
         uint16 _targetChainId,
         address payable _token,
         uint256 _amount,
@@ -89,6 +90,21 @@ contract Bridge is Ownable {
             s
         );
         ERC20Token(_token).transferFrom(msg.sender, address(this), _amount);
+
+        emit Lock(msg.sender, _targetChainId, _token, _amount);
+    }
+
+    /**
+     * @notice locks the non-native erc20 tokens, requires approve before sending transaction
+     */
+    function lock(
+        uint16 _targetChainId,
+        address payable _token,
+        uint256 _amount
+    ) external {
+        require(_amount > 0, "Bridged amount is required.");
+
+        ERC20(_token).transferFrom(msg.sender, address(this), _amount);
 
         emit Lock(msg.sender, _targetChainId, _token, _amount);
     }
