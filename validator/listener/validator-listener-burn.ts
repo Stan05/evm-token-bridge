@@ -4,10 +4,11 @@ import { StaticJsonRpcProvider } from "@ethersproject/providers";
 import BridgeABI from "../abis/Bridge.json";
 import GovernanceABI from "../abis/Governance.json";
 import RegistryABI from "../abis/Registry.json";
-import ERC20ABI from "../abis/ERC20Token.json";
-import ValidatorRepository from "../repository/validator-repository";
+import TransactionRepository from "../repository/transaction-repository";
 import { Transaction, TransactionType } from "../repository/models/transaction";
-import { getValidatorAllowanceSignature } from "./utils";
+import { getValidatorAllowanceSignature, ensureFinality } from "./utils";
+import TransactionService from "../service/transaction-service";
+import { networks } from "../config";
 dotenv.config();
 
 const validatorPrivateKey: string =
@@ -16,11 +17,11 @@ const validatorPrivateKey: string =
 /* SOURCE CHAIN DEFS */
 const sourceChainProvider: StaticJsonRpcProvider =
   new ethers.providers.StaticJsonRpcProvider(
-    process.env.ROPSTEN_URL?.toString() ?? ""
+    process.env.RINKEBY_URL?.toString() ?? ""
   );
 
 const sourceBridgeContractAddress: string =
-  process.env.ROPSTEN_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
+  process.env.RINKEBY_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
 const sourceBridgeContract: Contract = new ethers.Contract(
   sourceBridgeContractAddress,
   BridgeABI.abi,
@@ -28,7 +29,7 @@ const sourceBridgeContract: Contract = new ethers.Contract(
 );
 
 const sourceRegistryContractAddress: string =
-  process.env.ROPSTEN_REGISTRY_CONTRACT_ADDR?.toString() ?? "";
+  process.env.RINKEBY_REGISTRY_CONTRACT_ADDR?.toString() ?? "";
 const sourceRegistryContract: Contract = new ethers.Contract(
   sourceRegistryContractAddress,
   RegistryABI.abi,
@@ -43,49 +44,68 @@ const validatorSourceChainWallet: Wallet = new ethers.Wallet(
 /* TARGET CHAIN DEFS */
 const targetChainProvider: StaticJsonRpcProvider =
   new ethers.providers.StaticJsonRpcProvider(
-    process.env.RINKEBY_URL?.toString() ?? ""
+    process.env.ROPSTEN_URL?.toString() ?? ""
   );
 
 const targetBridgeContractAddress: string =
-  process.env.RINKEBY_URL?.toString() ?? "";
+  process.env.ROPSTEN_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
 const targetBridgeContract: Contract = new ethers.Contract(
   targetBridgeContractAddress,
   BridgeABI.abi,
   targetChainProvider
 );
+const targetRegistryContractAddress: string =
+  process.env.ROPSTEN_REGISTRY_CONTRACT_ADDR?.toString() ?? "";
+const targetRegistryContract: Contract = new ethers.Contract(
+  targetRegistryContractAddress,
+  RegistryABI.abi,
+  targetChainProvider
+);
 
-const validatorRepository: ValidatorRepository = new ValidatorRepository();
+const validatorTargetChainWallet: Wallet = new ethers.Wallet(
+  validatorPrivateKey,
+  targetChainProvider
+);
+const transactionService: TransactionService = new TransactionService();
 
-const listenForBurnEvents = async () => {
-  sourceChainProvider.on(sourceBridgeContract.filters.Burn(), handleBurnEvent);
-};
-
-const handleBurnEvent = async (event: any) => {
+const handleBurnEvent = async (
+  event: any,
+  sourceChainId: number,
+  targetChainId: number,
+  targetChainProvider: StaticJsonRpcProvider,
+  sourceChainProvider: StaticJsonRpcProvider,
+  targetBridgeContract: Contract,
+  sourceRegistryContract: Contract,
+  validatorSourceChainWallet: Wallet
+) => {
+  console.log("--------------Burn Event--------------");
+  const decodedData = ethers.utils.defaultAbiCoder.decode(
+    ["address", "uint256"],
+    event.data
+  );
+  const from: string = ethers.utils.hexStripZeros(event.topics[1]);
+  const eventTargetChainId: number = parseInt(event.topics[2]);
+  const burnToken: string = decodedData[0];
+  const burnAmount: BigNumber = decodedData[1];
   if (
-    (await validatorRepository.GetTransaction(
+    targetChainId === eventTargetChainId &&
+    (await transactionService.GetTransaction(
       event.transactionHash,
-      TransactionType.BURN
+      TransactionType.BURN,
+      sourceChainId,
+      targetChainId
     )) == null
   ) {
-    console.log("--------------Burn Event--------------");
-    const decodedData = ethers.utils.defaultAbiCoder.decode(
-      ["address", "uint256"],
-      event.data
-    );
-    const from: string = ethers.utils.hexStripZeros(event.topics[1]);
-    const targetChainId: number = parseInt(event.topics[2]);
-    const burnToken: string = decodedData[0];
-    const burnAmount: BigNumber = decodedData[1];
-    console.log("Block Number :", event.blockNumber);
-    console.log("From : ", from);
-    console.log("Target chain id : ", targetChainId);
-    console.log("Burnt Token : ", burnToken);
-    console.log("Burnt Amount : ", burnAmount.toString());
+    if (!(await ensureFinality(sourceChainProvider, event.transactionHash))) {
+      console.log("Transaction was reverted, not going to process the event");
+      return;
+    }
 
-    const sourceToken: string = await lookupSourceTokenAddress(
-      burnToken,
-      targetChainId
-    );
+    const sourceToken: string =
+      await sourceRegistryContract.lookupSourceTokenAddress(
+        burnToken,
+        targetChainId
+      );
 
     const governance: Contract = new ethers.Contract(
       await targetBridgeContract.governance(),
@@ -100,27 +120,50 @@ const handleBurnEvent = async (event: any) => {
       sourceToken,
       governance
     );
-    const lockTransaction: Transaction = {
+    const transaction: Transaction = {
       txHash: event.transactionHash,
       txType: TransactionType.BURN,
       from: from,
       targetChainid: targetChainId,
-      lockedAmount: burnAmount,
-      lockedToken: burnToken,
+      sourceChainId: sourceChainId,
+      amount: burnAmount,
+      sourceToken: burnToken,
       targetToken: sourceToken,
       signatures: [signature],
     };
-    await validatorRepository.CreateTransaction(lockTransaction);
+    await transactionService.CreateTransaction(transaction);
+  } else {
+    console.log(
+      "Received Event that already has an entry ",
+      event.transactionHash
+    );
   }
 };
 
-const lookupSourceTokenAddress = async (
-  targetToken: string,
-  targetChainId: number
-): Promise<string> => {
-  return await sourceRegistryContract.lookupSourceTokenAddress(
-    targetToken,
-    targetChainId
+const listenForBurnEvents = async () => {
+  sourceChainProvider.on(sourceBridgeContract.filters.Burn(), (event) =>
+    handleBurnEvent(
+      event,
+      4,
+      3,
+      targetChainProvider,
+      sourceChainProvider,
+      targetBridgeContract,
+      targetRegistryContract,
+      validatorSourceChainWallet
+    )
+  );
+  targetChainProvider.on(targetBridgeContract.filters.Burn(), (event) =>
+    handleBurnEvent(
+      event,
+      3,
+      4,
+      sourceChainProvider,
+      targetChainProvider,
+      sourceBridgeContract,
+      sourceRegistryContract,
+      validatorTargetChainWallet
+    )
   );
 };
 export default listenForBurnEvents;

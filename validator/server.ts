@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import validatorApi from "./apis/validator-api";
+import tokensApi from "./apis/tokens-api";
 import runValidator from "./listener";
 import databaseConnection from "./repository/connection";
 
@@ -13,6 +14,8 @@ const StartServer = async () => {
   app.use(cors());
 
   await validatorApi(app);
+  await tokensApi(app);
+
   await databaseConnection();
   app
     .listen(PORT, HOST, async () => {

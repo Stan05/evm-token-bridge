@@ -5,9 +5,9 @@ import BridgeABI from "../abis/Bridge.json";
 import GovernanceABI from "../abis/Governance.json";
 import RegistryABI from "../abis/Registry.json";
 import ERC20ABI from "../abis/ERC20Token.json";
-import ValidatorRepository from "../repository/validator-repository";
 import { Transaction, TransactionType } from "../repository/models/transaction";
-import { getValidatorAllowanceSignature } from "./utils";
+import { getValidatorAllowanceSignature, ensureFinality } from "./utils";
+import TransactionService from "../service/transaction-service";
 dotenv.config();
 
 const validatorPrivateKey: string =
@@ -53,17 +53,17 @@ const targetBridgeContract: Contract = new ethers.Contract(
   BridgeABI.abi,
   targetChainProvider
 );
-
-const validatorTargetChainWallet: Wallet = new ethers.Wallet(
-  validatorPrivateKey,
+const targetRegistryContractAddress: string =
+  process.env.ROPSTEN_REGISTRY_CONTRACT_ADDR?.toString() ?? "";
+const targetRegistryContract: Contract = new ethers.Contract(
+  targetRegistryContractAddress,
+  RegistryABI.abi,
   targetChainProvider
 );
 
-const validatorRepository: ValidatorRepository = new ValidatorRepository();
+const validatorWallet: Wallet = new ethers.Wallet(validatorPrivateKey);
 
-const listenForLockEvents = async () => {
-  sourceChainProvider.on(sourceBridgeContract.filters.Lock(), handleLockEvent);
-};
+const transactionService: TransactionService = new TransactionService();
 
 /**
  * Handles each Lock event emitted from the source chain Bridge contract.
@@ -71,26 +71,50 @@ const listenForLockEvents = async () => {
  * Creates a new LockTransaction entry in the Repository.
  * @param event the Lock event data
  */
-async function handleLockEvent(event: any) {
+async function handleLockEvent(
+  event: any,
+  sourceChainId: number,
+  targetChainId: number,
+  sourceRegistryContract: Contract,
+  targetBridgeContract: Contract,
+  sourceChainProvider: StaticJsonRpcProvider,
+  targetChainProvider: StaticJsonRpcProvider,
+  validatorTargetChainWallet: Wallet
+) {
+  const decodedData = ethers.utils.defaultAbiCoder.decode(
+    ["address", "uint256"],
+    event.data
+  );
+  const from = ethers.utils.hexStripZeros(event.topics[1]);
+  const lockedToken: string = decodedData[0];
+  const lockedAmount: BigNumber = decodedData[1];
+  const eventTargetChainId: number = parseInt(event.topics[2]);
+  console.log(
+    "Receiving event in source %d target %d handler",
+    sourceChainId,
+    targetChainId
+  );
   if (
-    (await validatorRepository.GetTransaction(
+    eventTargetChainId === targetChainId &&
+    (await transactionService.GetTransaction(
       event.transactionHash,
-      TransactionType.LOCK
+      TransactionType.LOCK,
+      sourceChainId,
+      targetChainId
     )) == null
   ) {
-    console.log("--------------Lock Event--------------");
-    const decodedData = ethers.utils.defaultAbiCoder.decode(
-      ["address", "uint256"],
-      event.data
-    );
-    const from = ethers.utils.hexStripZeros(event.topics[1]);
-    const lockedToken: string = decodedData[0];
-    const lockedAmount: BigNumber = decodedData[1];
-    const targetChainId: number = parseInt(event.topics[2]);
+    if (!(await ensureFinality(sourceChainProvider, event.transactionHash))) {
+      console.log("Transaction was reverted, not going to process the event");
+      return;
+    }
 
     const targetToken: string = await lookupTargetWrappedTokenAddress(
       lockedToken,
-      targetChainId
+      targetChainId,
+      sourceRegistryContract,
+      sourceChainProvider,
+      targetBridgeContract,
+      validatorTargetChainWallet
     );
     const governance: Contract = new ethers.Contract(
       await targetBridgeContract.governance(),
@@ -105,17 +129,18 @@ async function handleLockEvent(event: any) {
       targetToken,
       governance
     );
-    const lockTransaction: Transaction = {
+    const transaction: Transaction = {
       txHash: event.transactionHash,
       txType: TransactionType.LOCK,
       from: from,
       targetChainid: targetChainId,
-      lockedAmount: lockedAmount,
-      lockedToken: lockedToken,
+      sourceChainId: sourceChainId,
+      amount: lockedAmount,
+      sourceToken: lockedToken,
       targetToken: targetToken,
       signatures: [signature],
     };
-    await validatorRepository.CreateTransaction(lockTransaction);
+    await transactionService.CreateTransaction(transaction);
   } else {
     console.log(
       "Received Event that already has an entry ",
@@ -133,23 +158,27 @@ async function handleLockEvent(event: any) {
  */
 const lookupTargetWrappedTokenAddress = async (
   sourceToken: string,
-  targetChainId: number
+  targetChainId: number,
+  registryContract: Contract,
+  sourceChainProvider: StaticJsonRpcProvider,
+  targetBridgeContract: Contract,
+  validatorTargetChainWallet: Wallet
 ): Promise<string> => {
   let targetWrappedTokenAddress =
-    await sourceRegistryContract.lookupTargetTokenAddress(
-      sourceToken,
-      targetChainId
-    );
+    await registryContract.lookupTargetTokenAddress(sourceToken, targetChainId);
   if (
-    targetWrappedTokenAddress == undefined ||
-    targetWrappedTokenAddress == ethers.constants.AddressZero
+    targetWrappedTokenAddress === undefined ||
+    targetWrappedTokenAddress === ethers.constants.AddressZero
   ) {
     console.log("\nDoesn't have corresponding wrapped token, deploying one");
     targetWrappedTokenAddress = await deployWrappedTokenOnTargetChain(
-      sourceToken
+      sourceToken,
+      sourceChainProvider,
+      targetBridgeContract,
+      validatorTargetChainWallet
     );
-    await sourceRegistryContract
-      .connect(validatorSourceChainWallet)
+    await registryContract
+      .connect(validatorSourceChainWallet) // TODO: Redeploy Registry and try this
       .registerTargetTokenAddress(
         sourceToken,
         targetChainId,
@@ -165,9 +194,12 @@ const lookupTargetWrappedTokenAddress = async (
  * @returns the newly created wrapped token address
  */
 const deployWrappedTokenOnTargetChain = async (
-  sourceToken: string
+  sourceToken: string,
+  sourceChainProvider: StaticJsonRpcProvider,
+  targetBridgeContract: Contract,
+  validatorTargetChainWallet: Wallet
 ): Promise<string> => {
-  const sourceTokenContract = new ethers.Contract(
+  const sourceTokenContract: Contract = new ethers.Contract(
     sourceToken,
     ERC20ABI.abi,
     sourceChainProvider
@@ -191,6 +223,39 @@ const deployWrappedTokenOnTargetChain = async (
   );
 
   return wrappedTokenAddress;
+};
+
+const listenForLockEvents = async () => {
+  const sourceChainId = 4;
+  const targetChainId = 3;
+  sourceChainProvider.on(
+    sourceBridgeContract.filters.Lock(null, targetChainId),
+    (event) =>
+      handleLockEvent(
+        event,
+        sourceChainId,
+        targetChainId,
+        sourceRegistryContract,
+        targetBridgeContract,
+        sourceChainProvider,
+        targetChainProvider,
+        validatorWallet.connect(targetChainProvider)
+      )
+  );
+  targetChainProvider.on(
+    targetBridgeContract.filters.Lock(null, sourceChainId),
+    (event) =>
+      handleLockEvent(
+        event,
+        targetChainId,
+        sourceChainId,
+        targetRegistryContract,
+        sourceBridgeContract,
+        targetChainProvider,
+        sourceChainProvider,
+        validatorWallet.connect(sourceChainProvider)
+      )
+  );
 };
 
 export default listenForLockEvents;
