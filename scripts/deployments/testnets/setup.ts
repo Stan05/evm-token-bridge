@@ -68,7 +68,7 @@ async function setup(verifyContract: boolean) {
 
   console.log(
     "Deployer ether balance ",
-    ethers.utils.formatEther(await deployerWallet.getBalance())
+    ethers.utils.formatEther(await deployer.getBalance())
   );
   return bridge;
 }
@@ -97,20 +97,23 @@ const deployContract = async (
 
   console.log("Waiting for deployment... ");
   if (verifyContract) {
-    console.log("Waiting 10 block confirmations");
-    await contract.deployTransaction.wait(10);
+    console.log("Waiting 7 block confirmations");
+    await contract.deployTransaction.wait(7);
     console.log(
       "%s Contract deployed on address: %s",
       contractName,
       contract.address
     );
-
-    console.log("Starting verification");
-    await hre.run("verify:verify", {
-      address: contract.address,
-      constructorArguments: [...args],
-    });
-    console.log("Contract Verified on Etherscan");
+    try {
+      console.log("Starting verification");
+      await hre.run("verify:verify", {
+        address: contract.address,
+        constructorArguments: [...args],
+      });
+      console.log("Contract Verified on Etherscan");
+    } catch (error) {
+      console.log(error);
+    }
   } else {
     await contract.deployed();
     console.log(
