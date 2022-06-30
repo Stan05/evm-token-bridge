@@ -6,8 +6,8 @@ import BridgeStarted from "./BridgeStarted";
 import BridgeSetup from "./BridgeSetup";
 
 export enum BridgeTxType {
-  LOCK,
-  BURN,
+  LOCK = "LOCK",
+  BURN = "BURN",
 }
 
 export type BridgeFormData = {
@@ -17,6 +17,7 @@ export type BridgeFormData = {
   bridgeAmount: BigNumber;
   bridgeAmountInput: number;
   bridgeTxType: BridgeTxType;
+  isPermit: boolean;
 };
 
 const initialState: BridgeFormData = {
@@ -26,6 +27,7 @@ const initialState: BridgeFormData = {
   bridgeAmount: undefined,
   bridgeAmountInput: undefined,
   bridgeTxType: undefined,
+  isPermit: false,
 };
 
 const Bridge = () => {

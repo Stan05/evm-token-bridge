@@ -18,7 +18,26 @@ a {
 @import url("https://rsms.me/inter/inter.css");
 
 /**
- * Main wrapper
+* Bridge Component
+*/
+.bridge-wrapper {
+  width: 50%;
+  margin: auto;
+}
+
+.select-search {
+  margin: auto;
+}
+.bridge-tokens-selectors {
+  display: inline;
+}
+
+/**
+* Bridge Add Token Modal
+*/
+
+/**
+ * Select Search Component Main wrapper
  */
 .select-search {
   --select-search-background: #fff;
@@ -83,7 +102,6 @@ body.is-light-mode .select-search {
  */
 .select-search__value {
   position: relative;
-  z-index: 1;
 }
 
 .select-search__value::after {

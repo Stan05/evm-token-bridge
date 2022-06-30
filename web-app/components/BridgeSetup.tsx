@@ -1,4 +1,8 @@
-import { Web3Provider } from "@ethersproject/providers";
+import {
+  TransactionReceipt,
+  TransactionResponse,
+  Web3Provider,
+} from "@ethersproject/providers";
 import { useWeb3React } from "@web3-react/core";
 import { useEffect, useState } from "react";
 import {
@@ -13,8 +17,11 @@ import useBridgeContract from "../hooks/useBridgeContract";
 import { getUserPermit } from "../utils/helper-functions";
 import { BigNumber, Contract, ethers } from "ethers";
 import ERC20Token_ABI from "../contracts/ERC20Token.json";
+import BasicERC20_ABI from "../contracts/ERC20.json";
 import { BridgeFormData, BridgeTxType } from "./Bridge";
 import useWrappedTokenFactory from "../hooks/useWrappedTokenFactory";
+import axios from "axios";
+import AddTokenComponent from "./AddTokenComponent";
 
 interface BridgeStartedInterface {
   bridgeFormData: BridgeFormData;
@@ -24,7 +31,7 @@ interface BridgeStartedInterface {
   requestNetworkSwitch: (chainId: number) => void;
 }
 
-const Bridge = ({
+const BridgeSetup = ({
   bridgeFormData,
   setBridgeFormData,
   setHasBridgingStarted,
@@ -76,20 +83,36 @@ const Bridge = ({
     );
 
     // Initialize supported source tokens
-    const supportedSourceTokens: SelectSearchOption[] = bridgeSupportedChains
+    /*const supportedSourceTokens: SelectSearchOption[] = bridgeSupportedChains
       .find((supportedChain) => supportedChain.chainId === chainId)
       ?.supportedTokens.map((supportedToken) =>
         fromSupportedToken(supportedToken)
-      );
-    setSupportedSourceTokens(supportedSourceTokens);
+      );*/
+    updateSupportedSourceTokens(chainId);
+    //setSupportedSourceTokens(supportedSourceTokens);
   };
 
-  const handleSourceTokenChanged = async (sourceToken) => {
-    const tokenContract: Contract = new Contract(
-      sourceToken,
-      ERC20Token_ABI.abi,
-      library.getSigner(account)
-    );
+  const handleSourceTokenChanged = async (sourceToken: string) => {
+    let isPermit: boolean = false;
+    let tokenContract: Contract;
+    try {
+      tokenContract = new Contract(
+        sourceToken,
+        ERC20Token_ABI.abi,
+        library.getSigner(account)
+      );
+      await tokenContract.estimateGas.nonces(account);
+      isPermit = true;
+    } catch (error) {
+      console.log(
+        "Choosen token is not supportig permit, defaulting to basic ERC20"
+      );
+      tokenContract = new Contract(
+        sourceToken,
+        BasicERC20_ABI.abi,
+        library.getSigner(account)
+      );
+    }
 
     setAvailableSourceTokenAmount(await tokenContract.balanceOf(account));
     setSourceTokenContract(tokenContract);
@@ -101,22 +124,34 @@ const Bridge = ({
     });
     setBridgeFormData({
       ...bridgeFormData,
-      bridgeTxType: isWrappedTokenSelected(sourceToken)
+      bridgeTxType: (await isWrappedTokenSelected(sourceToken))
         ? BridgeTxType.BURN
         : BridgeTxType.LOCK,
       sourceToken: sourceToken,
+      isPermit: isPermit,
     });
   };
 
   const sendBridgeTransaction = async () => {
     if (isFormValid) {
       console.log(
-        "Sending bridge lock transaction from chain %d and token %s with amount %f to chain %d",
+        "Sending bridge %s transaction from chain %d and token %s with amount %f to chain %d",
+        bridgeFormData.bridgeTxType,
         bridgeFormData.sourceChain,
         bridgeFormData.sourceToken,
         bridgeFormData.bridgeAmountInput,
         bridgeFormData.targetChain
       );
+      if (bridgeFormData.bridgeTxType == BridgeTxType.LOCK) {
+        await sendLockTransaction();
+      } else if (bridgeFormData.bridgeTxType == BridgeTxType.BURN) {
+        await sendBurnTransaction();
+      }
+    }
+  };
+
+  const sendLockTransaction = async () => {
+    if (bridgeFormData.isPermit) {
       await getUserPermit(
         account,
         sourceBridge.address,
@@ -125,7 +160,7 @@ const Bridge = ({
         bridgeFormData.bridgeAmount
       ).then(async (signature) => {
         await sourceBridge
-          .lock(
+          .lockWithPermit(
             bridgeFormData.targetChain,
             bridgeFormData.sourceToken,
             bridgeFormData.bridgeAmount,
@@ -135,7 +170,7 @@ const Bridge = ({
             signature.s
           )
           .then((tx) => {
-            console.log(tx);
+            console.log("Successful Lock with permit");
             setHasBridgingStarted(true);
             setBridgeTxHash(tx.hash);
           })
@@ -144,16 +179,83 @@ const Bridge = ({
             setHasBridgingStarted(false);
           });
       });
+    } else {
+      const approveResponse: TransactionResponse =
+        await sourceTokenContract.approve(
+          sourceBridge.address,
+          bridgeFormData.bridgeAmount
+        );
+      const approveReceipt: TransactionReceipt = await approveResponse.wait();
+      if (approveReceipt.status == 1) {
+        await sourceBridge
+          .lock(
+            bridgeFormData.targetChain,
+            bridgeFormData.sourceToken,
+            bridgeFormData.bridgeAmount
+          )
+          .then((tx) => {
+            console.log("Successful Lock without permit");
+            setHasBridgingStarted(true);
+            setBridgeTxHash(tx.hash);
+          })
+          .catch((error) => {
+            console.log("Tx Failed");
+            setHasBridgingStarted(false);
+          });
+      }
     }
+  };
+
+  const sendBurnTransaction = async () => {
+    await getUserPermit(
+      account,
+      sourceBridge.address,
+      sourceTokenContract,
+      window.ethereum,
+      bridgeFormData.bridgeAmount
+    ).then(async (signature) => {
+      await sourceBridge
+        .burn(
+          bridgeFormData.targetChain,
+          bridgeFormData.sourceToken,
+          bridgeFormData.bridgeAmount,
+          signature.deadline,
+          signature.v,
+          signature.r,
+          signature.s
+        )
+        .then((tx) => {
+          console.log(tx);
+          setHasBridgingStarted(true);
+          setBridgeTxHash(tx.hash);
+        })
+        .catch((error) => {
+          console.log("Tx Failed");
+          setHasBridgingStarted(false);
+        });
+    });
   };
 
   const isWrappedTokenSelected = async (
     sourceToken: string
   ): Promise<boolean> => {
-    return (
-      (await sourceWrappedTokenFactory.lookupTokenContract(sourceToken)) !=
-      undefined
+    const token = await sourceWrappedTokenFactory.lookupTokenContract(
+      sourceToken
     );
+    return token != ethers.constants.AddressZero;
+  };
+
+  const updateSupportedSourceTokens = (chainId) => {
+    axios.get("http://localhost:8080/tokens/" + chainId).then((tokens) => {
+      console.log(tokens);
+      const supportedSourceTokens: SelectSearchOption[] = tokens.data.map(
+        ({ chainId, token, name, symbol }) => ({
+          name: name + "(" + symbol + ")",
+          value: token,
+        })
+      );
+      setSupportedSourceTokens(supportedSourceTokens);
+    });
   };
 
   useEffect(() => {
@@ -173,89 +275,89 @@ const Bridge = ({
   return (
     <div className="bridge-setup">
       <div className="bridge-chains-selectors">
-        <div>
-          <label htmlFor="sourceChain">Transfer from</label>
-          <SelectSearch
-            options={supportedSourceChains}
-            id="sourceChain"
-            search
-            value={bridgeFormData?.sourceChain}
-            onChange={(selectedValue) => requestNetworkSwitch(selectedValue)}
-            placeholder="Choose Chain"
-          />
-        </div>
-        <div>
-          <label htmlFor="targetChain">Transfer to</label>
-          <SelectSearch
-            options={supportedTargetChains}
-            id="targetChain"
-            search
-            value={bridgeFormData?.targetChain}
-            placeholder="Choose Chain"
-            onChange={(targetChain) =>
-              setBridgeFormData({
-                ...bridgeFormData,
-                targetChain: targetChain,
-              })
-            }
-          />
-        </div>
+        <label htmlFor="sourceChain">Transfer from</label>
+        <SelectSearch
+          options={supportedSourceChains}
+          id="sourceChain"
+          search
+          value={bridgeFormData?.sourceChain}
+          onChange={(selectedValue) => requestNetworkSwitch(selectedValue)}
+          placeholder="Choose Chain"
+        />
+      </div>
+      <div className="bridge-chains-selectors">
+        <label htmlFor="targetChain">Transfer to</label>
+        <SelectSearch
+          options={supportedTargetChains}
+          id="targetChain"
+          search
+          value={bridgeFormData?.targetChain}
+          placeholder="Choose Chain"
+          onChange={(targetChain) =>
+            setBridgeFormData({
+              ...bridgeFormData,
+              targetChain: targetChain,
+            })
+          }
+        />
       </div>
 
       <div className="bridge-tokens-selectors">
-        <div>
-          <label htmlFor="sourceToken">You send</label>
-          <SelectSearch
-            options={supportedSourceTokens}
-            id="sourceToken"
-            search
-            value={bridgeFormData?.sourceToken}
-            placeholder="Choose Token"
-            onChange={handleSourceTokenChanged}
-          />
-        </div>
-        <div>
-          {selectedSourceTokenDetails && availabeSourceTokenAmount && (
-            <p>
-              Balance
-              {`${
-                " " +
-                selectedSourceTokenDetails.symbol +
-                " " +
-                ethers.utils.formatUnits(
-                  availabeSourceTokenAmount,
-                  selectedSourceTokenDetails.decimals
-                )
-              }` ?? 0}
-            </p>
-          )}
-          <NumberFormat
-            value={bridgeFormData?.bridgeAmountInput}
-            onValueChange={(value, source) => {
-              if (source.event) {
-                setBridgeFormData({
-                  ...bridgeFormData,
-                  bridgeAmountInput: value.floatValue,
-                  bridgeAmount: BigNumber.from(value?.floatValue ?? 0).mul(
-                    BigNumber.from(10).pow(
-                      selectedSourceTokenDetails?.decimals ?? 18
-                    )
-                  ),
-                });
-              }
-            }}
-            allowNegative={false}
-            thousandSeparator={true}
-            className="some"
-            inputMode="numeric"
-          />
-        </div>
+        <label htmlFor="sourceToken">You send</label>
+        <SelectSearch
+          options={supportedSourceTokens}
+          id="sourceToken"
+          search
+          value={bridgeFormData?.sourceToken}
+          placeholder="Choose Token"
+          onChange={handleSourceTokenChanged}
+        />
       </div>
-
+      <AddTokenComponent
+        chainId={bridgeFormData?.sourceChain}
+        onSuccessfullAdd={() =>
+          updateSupportedSourceTokens(bridgeFormData?.sourceChain)
+        }
+      ></AddTokenComponent>
+      <div className="bridge-amount-selector">
+        {selectedSourceTokenDetails && availabeSourceTokenAmount && (
+          <p>
+            Balance
+            {`${
+              " " +
+              selectedSourceTokenDetails.symbol +
+              " " +
+              ethers.utils.formatUnits(
+                availabeSourceTokenAmount,
+                selectedSourceTokenDetails.decimals
+              )
+            }` ?? 0}
+          </p>
+        )}
+        <NumberFormat
+          value={bridgeFormData?.bridgeAmountInput}
+          onValueChange={(value, source) => {
+            if (source.event) {
+              setBridgeFormData({
+                ...bridgeFormData,
+                bridgeAmountInput: value.floatValue,
+                bridgeAmount: BigNumber.from(value?.floatValue ?? 0).mul(
+                  BigNumber.from(10).pow(
+                    selectedSourceTokenDetails?.decimals ?? 18
+                  )
+                ),
+              });
+            }
+          }}
+          allowNegative={false}
+          thousandSeparator={true}
+          className="some"
+          inputMode="numeric"
+        />
+      </div>
       <button disabled={!isFormValid} onClick={() => sendBridgeTransaction()}>
         Confirm
       </button>
-      <button onClick={() => setHasBridgingStarted(true)}>Start</button>
     </div>
   );
 };
@@ -282,4 +384,4 @@ function fromSupportedToken(
   };
 }
 
-export default Bridge;
+export default BridgeSetup;
