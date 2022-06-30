@@ -9,20 +9,41 @@ class SupportedTokenService {
   supportedTokenRepository: SupportedTokenRepository =
     new SupportedTokenRepository();
 
-  async EnsureTokenIsSupported(chainId: number, token: String): Promise<void> {
-    if (await this.isTokenNotSupported(chainId, token)) {
+  async GetSupportedTokens(chainId: number) {
+    return this.supportedTokenRepository.GetSupportedTokens(chainId);
+  }
+
+  async GetSupportedToken(chainId: number, token: string) {
+    return this.supportedTokenRepository.GetSupportedToken(chainId, token);
+  }
+
+  async CreateSupportedToken(chainId: number, tokenAddress: string) {
+    if (chainId && tokenAddress) {
+      await this.EnsureTokenIsSupported(chainId, tokenAddress);
+      return this.GetSupportedToken(chainId, tokenAddress);
+    } else {
+      throw new Error("Chain id or token address not provided");
+    }
+  }
+
+  async EnsureTokenIsSupported(
+    chainId: number,
+    tokenAddress: string
+  ): Promise<void> {
+    if (await this.isTokenNotSupported(chainId, tokenAddress)) {
       console.log(
         "Token %s on chain %d is not supported, creating it in db",
-        token,
+        tokenAddress,
         chainId
       );
-      const tokenContract: Contract = this.configBuilder.GetContract(
+      const tokenContract: Contract = this.configBuilder.GetCotnractAt(
         chainId,
+        tokenAddress,
         ContractName.ERC20_TOKEN
       );
       this.supportedTokenRepository.CreateSupportedToken({
         chainId: chainId,
-        token: token,
+        token: tokenAddress,
         name: await tokenContract.name(),
         decimals: await tokenContract.decimals(),
         symbol: await tokenContract.symbol(),
@@ -32,7 +53,7 @@ class SupportedTokenService {
 
   private async isTokenNotSupported(
     chainId: number,
-    token: String
+    token: string
   ): Promise<boolean> {
     return (
       (await this.supportedTokenRepository.GetSupportedToken(chainId, token)) ==

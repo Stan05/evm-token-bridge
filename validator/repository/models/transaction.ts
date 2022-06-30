@@ -7,15 +7,15 @@ enum TransactionType {
 }
 
 interface Transaction {
-  txHash: String;
+  txHash: string;
   txType: TransactionType;
-  from: String;
+  from: string;
   sourceChainId: number;
   targetChainid: number;
   amount: BigNumber;
-  sourceToken: String;
-  targetToken: String;
-  signatures?: String[];
+  sourceToken: string;
+  targetToken: string;
+  signatures?: string[];
 }
 
 const TransactionSchema = new mongoose.Schema<Transaction>({

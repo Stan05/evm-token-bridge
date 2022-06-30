@@ -12,6 +12,7 @@ const HOST = "0.0.0.0";
 const StartServer = async () => {
   const app = express();
   app.use(cors());
+  app.use(express.json());
 
   await validatorApi(app);
   await tokensApi(app);

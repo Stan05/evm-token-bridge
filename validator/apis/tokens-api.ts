@@ -1,12 +1,13 @@
-import { Express, Request, Response } from "express";
+import express, { Express, Request, Response } from "express";
 import {
   SupportedTokenModel,
   SupportedToken,
 } from "../repository/models/supported-token";
 import SupportedTokenRepository from "../repository/models/supported-token-repository";
+import SupportedTokenService from "../service/supported-token-service";
 
-const supportedTokenRepository: SupportedTokenRepository =
-  new SupportedTokenRepository();
+const supportedTokenRepository: SupportedTokenService =
+  new SupportedTokenService();
 
 export default async (app: Express) => {
   app.get("/tokens/:chainId", async (req: Request, res: Response, next) => {
@@ -41,13 +42,14 @@ export default async (app: Express) => {
 
   app.post("/tokens", async (req: Request, res: Response, next) => {
     try {
-      res.status(200);
-      console.log(req.body());
-      return res.json(
-        await supportedTokenRepository.GetSupportedTokens(
-          Number(req.params.chainId)
+      return res
+        .json(
+          await supportedTokenRepository.CreateSupportedToken(
+            Number(req.body.chainId),
+            req.body.token
+          )
         )
-      );
+        .status(200);
     } catch (err) {
       next(err);
     }
