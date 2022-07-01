@@ -324,7 +324,6 @@ const BridgeSetup = ({
       <AddTokenComponent
         chainId={bridgeFormData?.sourceChain}
         modalIsOpen={addTokenModalShowed}
-        openModal={() => setAddTokenModalShowed(true)}
         closeModal={() => {
           setBridgeFormData({ ...bridgeFormData, sourceToken: undefined });
           setAddTokenModalShowed(false);

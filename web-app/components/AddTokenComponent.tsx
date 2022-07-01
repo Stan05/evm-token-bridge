@@ -33,90 +33,67 @@ const modalStyle = {
   },
 };
 
+const TOKEN_ADDRESS_KEY = "tokenAddress";
 const AddTokenComponent = ({
   chainId,
   modalIsOpen,
-  openModal,
   closeModal,
   onSuccessfullAdd,
 }: {
   chainId: number;
   modalIsOpen: boolean;
-  openModal: () => void;
   closeModal: () => void;
   onSuccessfullAdd: () => void;
 }) => {
-  const [tokenAddress, setTokenAddress] = useState<string>();
-  const [isFormValid, setIsFormValid] = useState<boolean>(false);
-  const [formErrors, setFormErrors] = useState<
-    { key: string; value: string }[]
-  >([]);
+  const {
+    register,
+    formState: { errors },
+    setError,
+    resetField,
+    handleSubmit,
+  } = useForm();
 
-  const internalCloseModal = () => {
-    closeModal();
-    setTokenAddress(undefined);
-    setFormErrors([]);
+  const onSubmit = (data) => {
+    if (data.tokenAddress)
+      axios
+        .post("http://localhost:8080/tokens", {
+          chainId: chainId,
+          token: data.tokenAddress,
+        })
+        .then((response) => {
+          closeModal();
+          onSuccessfullAdd();
+          resetField(TOKEN_ADDRESS_KEY);
+        })
+        .catch((error) => {
+          setError(TOKEN_ADDRESS_KEY, {
+            type: "api-error",
+            message: "Could not add token",
+          });
+        });
   };
-
-  const handleSetTokenAddress = (event) => {
-    if (ethers.utils.isAddress(event.target.value)) {
-      console.log("valid");
-      setTokenAddress(event.target.value);
-      setFormErrors([]);
-    } else {
-      console.log("invalid", formErrors);
-      setFormErrors([{ key: "tokenAddress", value: "Invalid token address" }]);
-    }
-  };
-
-  const addTokenAddress = async () => {
-    axios
-      .post("http://localhost:8080/tokens", {
-        chainId: chainId,
-        token: tokenAddress,
-      })
-      .then((response) => {
-        closeModal();
-        onSuccessfullAdd();
-      })
-      .catch((error) => {
-        setFormErrors([{ key: "tokenAddress", value: "Could not add token" }]);
-      });
-  };
-
-  useEffect(() => {
-    setIsFormValid(formErrors.length == 0 && tokenAddress != undefined);
-  }, [tokenAddress]);
 
   return (
     <div className="bridge-add-token-modal">
       <Modal
         isOpen={modalIsOpen}
-        onRequestClose={internalCloseModal}
+        onRequestClose={closeModal}
         ariaHideApp={false}
         style={modalStyle}
       >
-        <div>
-          <label htmlFor="token-address">Input your token address</label>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <label htmlFor={TOKEN_ADDRESS_KEY}>Input your token address</label>
           <input
-            type="text"
-            name="token-address"
-            value={tokenAddress}
-            onChange={handleSetTokenAddress}
+            {...register(TOKEN_ADDRESS_KEY, {
+              validate: (value) =>
+                ethers.utils.isAddress(value) || "Should be a valid address",
+            })}
           />
           <div>
-            <FormErrors formErrors={formErrors} />
+            {errors.tokenAddress && <span>{errors.tokenAddress.message}</span>}
           </div>
-        </div>
-        <button
-          type="submit"
-          className="btn btn-primary"
-          onClick={addTokenAddress}
-          disabled={!isFormValid}
-        >
-          Add
-        </button>
-        <button onClick={internalCloseModal}>Close</button>
+          <input type="submit" />
+        </form>
       </Modal>
     </div>
   );
