@@ -13,7 +13,7 @@ class ConfigBuilder {
     return new ethers.providers.StaticJsonRpcProvider(rpcUrl);
   }
 
-  GetCotnractAt(
+  GetContractAt(
     chainId: number,
     address: string,
     contractName: ContractName

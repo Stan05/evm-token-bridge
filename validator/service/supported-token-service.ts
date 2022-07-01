@@ -36,7 +36,7 @@ class SupportedTokenService {
         tokenAddress,
         chainId
       );
-      const tokenContract: Contract = this.configBuilder.GetCotnractAt(
+      const tokenContract: Contract = this.configBuilder.GetContractAt(
         chainId,
         tokenAddress,
         ContractName.ERC20_TOKEN
