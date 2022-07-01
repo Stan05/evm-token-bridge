@@ -2,7 +2,7 @@ import { margin } from "@mui/system";
 import axios from "axios";
 import { ethers } from "ethers";
 import React, { Component, useEffect, useState } from "react";
-import { render } from "react-dom";
+import { useForm } from "react-hook-form";
 import Modal from "react-modal";
 import { FormErrors } from "./FormError";
 
@@ -35,24 +35,25 @@ const modalStyle = {
 
 const AddTokenComponent = ({
   chainId,
+  modalIsOpen,
+  openModal,
+  closeModal,
   onSuccessfullAdd,
 }: {
   chainId: number;
+  modalIsOpen: boolean;
+  openModal: () => void;
+  closeModal: () => void;
   onSuccessfullAdd: () => void;
 }) => {
-  const [modalIsOpen, setModalIsOpen] = useState<boolean>(false);
   const [tokenAddress, setTokenAddress] = useState<string>();
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
   const [formErrors, setFormErrors] = useState<
     { key: string; value: string }[]
   >([]);
 
-  const openModal = () => {
-    setModalIsOpen(true);
-  };
-
-  const closeModal = () => {
-    setModalIsOpen(false);
+  const internalCloseModal = () => {
+    closeModal();
     setTokenAddress(undefined);
     setFormErrors([]);
   };
@@ -89,11 +90,9 @@ const AddTokenComponent = ({
 
   return (
     <div className="bridge-add-token-modal">
-      <button onClick={openModal}>Add Token</button>
-
       <Modal
         isOpen={modalIsOpen}
-        onRequestClose={closeModal}
+        onRequestClose={internalCloseModal}
         ariaHideApp={false}
         style={modalStyle}
       >
@@ -117,7 +116,7 @@ const AddTokenComponent = ({
         >
           Add
         </button>
-        <button onClick={closeModal}>Close</button>
+        <button onClick={internalCloseModal}>Close</button>
       </Modal>
     </div>
   );

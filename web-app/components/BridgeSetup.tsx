@@ -10,7 +10,7 @@ import {
   bridgeSupportedChains,
   BridgeSupportedToken,
 } from "../constants/networks";
-import { SelectSearchOption } from "react-select-search";
+import { SelectedOptionValue, SelectSearchOption } from "react-select-search";
 import SelectSearch from "react-select-search";
 import NumberFormat from "react-number-format";
 import useBridgeContract from "../hooks/useBridgeContract";
@@ -30,6 +30,7 @@ interface BridgeStartedInterface {
   setBridgeTxHash: (bridgeTxHash: string) => void;
   requestNetworkSwitch: (chainId: number) => void;
 }
+const ADD_TOKEN_SELECT_KEY: string = "add-token-key";
 
 const BridgeSetup = ({
   bridgeFormData,
@@ -64,6 +65,8 @@ const BridgeSetup = ({
   const [selectedSourceTokenDetails, setSelectedSourceTokenDetails] =
     useState<BridgeSupportedToken>();
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
+  const [addTokenModalShowed, setAddTokenModalShowed] =
+    useState<boolean>(false);
 
   const initializeInputData = async (chainId: number) => {
     setBridgeFormData({
@@ -82,14 +85,7 @@ const BridgeSetup = ({
       )
     );
 
-    // Initialize supported source tokens
-    /*const supportedSourceTokens: SelectSearchOption[] = bridgeSupportedChains
-      .find((supportedChain) => supportedChain.chainId === chainId)
-      ?.supportedTokens.map((supportedToken) =>
-        fromSupportedToken(supportedToken)
-      );*/
     updateSupportedSourceTokens(chainId);
-    //setSupportedSourceTokens(supportedSourceTokens);
   };
 
   const handleSourceTokenChanged = async (sourceToken: string) => {
@@ -247,15 +243,23 @@ const BridgeSetup = ({
 
   const updateSupportedSourceTokens = (chainId) => {
     axios.get("http://localhost:8080/tokens/" + chainId).then((tokens) => {
-      console.log(tokens);
       const supportedSourceTokens: SelectSearchOption[] = tokens.data.map(
         ({ chainId, token, name, symbol }) => ({
           name: name + "(" + symbol + ")",
           value: token,
         })
       );
-      setSupportedSourceTokens(supportedSourceTokens);
+      console.log("Fetched tokens from API");
+      setSupportedSourceTokens([
+        { name: "Add Your Token", value: ADD_TOKEN_SELECT_KEY },
+        ...supportedSourceTokens,
+      ]);
     });
+  };
+
+  const showAddTokenModal = () => {
+    setSelectedSourceTokenDetails(undefined);
+    setAddTokenModalShowed(true);
   };
 
   useEffect(() => {
@@ -310,11 +314,21 @@ const BridgeSetup = ({
           search
           value={bridgeFormData?.sourceToken}
           placeholder="Choose Token"
-          onChange={handleSourceTokenChanged}
+          onChange={(sourceToken: string) =>
+            sourceToken != ADD_TOKEN_SELECT_KEY
+              ? handleSourceTokenChanged(sourceToken)
+              : showAddTokenModal()
+          }
         />
       </div>
       <AddTokenComponent
         chainId={bridgeFormData?.sourceChain}
+        modalIsOpen={addTokenModalShowed}
+        openModal={() => setAddTokenModalShowed(true)}
+        closeModal={() => {
+          setBridgeFormData({ ...bridgeFormData, sourceToken: undefined });
+          setAddTokenModalShowed(false);
+        }}
         onSuccessfullAdd={() =>
           updateSupportedSourceTokens(bridgeFormData?.sourceChain)
         }
