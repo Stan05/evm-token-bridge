@@ -124,6 +124,8 @@ const BridgeSetup = ({
         ? BridgeTxType.BURN
         : BridgeTxType.LOCK,
       sourceToken: sourceToken,
+      bridgeAmount: undefined,
+      bridgeAmountInput: undefined,
       isPermit: isPermit,
     });
   };
@@ -321,6 +323,53 @@ const BridgeSetup = ({
           }
         />
       </div>
+      <div className="bridge-amount-selector">
+        <div className="bridge-amount-input">
+          <label htmlFor="bridge-amount">Enter bridge amount</label>
+          <div>
+            <NumberFormat
+              value={bridgeFormData?.bridgeAmountInput}
+              onValueChange={(value, source) => {
+                if (source.event) {
+                  setBridgeFormData({
+                    ...bridgeFormData,
+                    bridgeAmountInput: value.floatValue,
+                    bridgeAmount: BigNumber.from(value?.floatValue ?? 0).mul(
+                      BigNumber.from(10).pow(
+                        selectedSourceTokenDetails?.decimals ?? 18
+                      )
+                    ),
+                  });
+                }
+              }}
+              allowNegative={false}
+              thousandSeparator={true}
+              className="some"
+              inputMode="numeric"
+            />
+          </div>
+        </div>
+        <div className="bridge-token-balance">
+          {selectedSourceTokenDetails && availabeSourceTokenAmount && (
+            <p>
+              Available Balance
+              {`${
+                " " +
+                selectedSourceTokenDetails.symbol +
+                " " +
+                ethers.utils.formatUnits(
+                  availabeSourceTokenAmount,
+                  selectedSourceTokenDetails.decimals
+                )
+              }` ?? 0}
+            </p>
+          )}
+        </div>
+      </div>
+      <button disabled={!isFormValid} onClick={() => sendBridgeTransaction()}>
+        Confirm
+      </button>
+
       <AddTokenComponent
         chainId={bridgeFormData?.sourceChain}
         modalIsOpen={addTokenModalShowed}
@@ -332,45 +381,6 @@ const BridgeSetup = ({
           updateSupportedSourceTokens(bridgeFormData?.sourceChain)
         }
       ></AddTokenComponent>
-      <div className="bridge-amount-selector">
-        {selectedSourceTokenDetails && availabeSourceTokenAmount && (
-          <p>
-            Balance
-            {`${
-              " " +
-              selectedSourceTokenDetails.symbol +
-              " " +
-              ethers.utils.formatUnits(
-                availabeSourceTokenAmount,
-                selectedSourceTokenDetails.decimals
-              )
-            }` ?? 0}
-          </p>
-        )}
-        <NumberFormat
-          value={bridgeFormData?.bridgeAmountInput}
-          onValueChange={(value, source) => {
-            if (source.event) {
-              setBridgeFormData({
-                ...bridgeFormData,
-                bridgeAmountInput: value.floatValue,
-                bridgeAmount: BigNumber.from(value?.floatValue ?? 0).mul(
-                  BigNumber.from(10).pow(
-                    selectedSourceTokenDetails?.decimals ?? 18
-                  )
-                ),
-              });
-            }
-          }}
-          allowNegative={false}
-          thousandSeparator={true}
-          className="some"
-          inputMode="numeric"
-        />
-      </div>
-      <button disabled={!isFormValid} onClick={() => sendBridgeTransaction()}>
-        Confirm
-      </button>
     </div>
   );
 };

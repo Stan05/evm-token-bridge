@@ -1,10 +1,8 @@
-import { margin } from "@mui/system";
 import axios from "axios";
 import { ethers } from "ethers";
-import React, { Component, useEffect, useState } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import Modal from "react-modal";
-import { FormErrors } from "./FormError";
 
 const modalStyle = {
   overlay: {
@@ -29,6 +27,7 @@ const modalStyle = {
     outline: "none",
     padding: "20px",
     width: "300px",
+    height: "250px",
     margin: "auto",
   },
 };
@@ -93,6 +92,7 @@ const AddTokenComponent = ({
             {errors.tokenAddress && <span>{errors.tokenAddress.message}</span>}
           </div>
           <input type="submit" />
+          <button onClick={closeModal}>Close</button>
         </form>
       </Modal>
     </div>
