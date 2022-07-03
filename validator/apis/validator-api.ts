@@ -12,7 +12,7 @@ export default async (app: Express) => {
       try {
         res.status(200);
         return res.json(
-          await transactionRepository.GetTransaction(
+          await transactionRepository.GetBridgeTransaction(
             req.params.txHash,
             TransactionType.LOCK,
             Number(req.params.sourceChainId),
@@ -31,7 +31,7 @@ export default async (app: Express) => {
       try {
         res.status(200);
         return res.json(
-          await transactionRepository.GetTransaction(
+          await transactionRepository.GetBridgeTransaction(
             req.params.txHash,
             TransactionType.BURN,
             Number(req.params.sourceChainId),

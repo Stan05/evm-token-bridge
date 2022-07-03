@@ -37,11 +37,11 @@ export const networks: NetworkConfig[] = [
     contracts: [
       {
         name: ContractName.BRIDGE,
-        address: "0xea1ed89D447F8D12988253421B4959f0E81C910b",
+        address: "0x3DE54C0044571a5e137ee5C1B6c5Ef049B58bD83",
       },
       {
         name: ContractName.REGISTRY,
-        address: "0xB77560E157e82e27DA4846db02D011672F7B0C06",
+        address: "0x7312b86d684fAdE7B33531323bec0C0EBADFfD20",
       },
     ],
     accounts: [process.env.VALIDATOR_PRIVATE_KEY?.toString()],
@@ -53,11 +53,11 @@ export const networks: NetworkConfig[] = [
     contracts: [
       {
         name: ContractName.BRIDGE,
-        address: "0x50926F29B9BCC0274E02d03ae9D812CdFe537BAe",
+        address: "0xD52bc80cB000Ccc5DB22328e5247b0ad2Be88F1d",
       },
       {
         name: ContractName.REGISTRY,
-        address: "0xCcfAFc8b4867fe4939Df58c76c2E9242bAC71199",
+        address: "0x42a3416255921B06767819E68037180d9bcC582C",
       },
     ],
     accounts: [process.env.VALIDATOR_PRIVATE_KEY?.toString()],

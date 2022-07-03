@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import validatorApi from "./apis/validator-api";
 import tokensApi from "./apis/tokens-api";
+import transactionsApi from "./apis/transactions-api";
 import runValidator from "./listener";
 import databaseConnection from "./repository/connection";
 
@@ -16,6 +17,7 @@ const StartServer = async () => {
 
   await validatorApi(app);
   await tokensApi(app);
+  await transactionsApi(app);
 
   await databaseConnection();
   app

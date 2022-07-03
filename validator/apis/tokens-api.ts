@@ -1,9 +1,4 @@
-import express, { Express, Request, Response } from "express";
-import {
-  SupportedTokenModel,
-  SupportedToken,
-} from "../repository/models/supported-token";
-import SupportedTokenRepository from "../repository/models/supported-token-repository";
+import { Express, Request, Response } from "express";
 import SupportedTokenService from "../service/supported-token-service";
 
 const supportedTokenRepository: SupportedTokenService =

@@ -5,7 +5,11 @@ import BridgeABI from "../abis/Bridge.json";
 import GovernanceABI from "../abis/Governance.json";
 import RegistryABI from "../abis/Registry.json";
 import ERC20ABI from "../abis/ERC20Token.json";
-import { Transaction, TransactionType } from "../repository/models/transaction";
+import {
+  Transaction,
+  TransactionStatus,
+  TransactionType,
+} from "../repository/models/transaction";
 import { getValidatorAllowanceSignature, ensureFinality } from "./utils";
 import TransactionService from "../service/transaction-service";
 dotenv.config();
@@ -14,51 +18,46 @@ const validatorPrivateKey: string =
   process.env.VALIDATOR_PRIVATE_KEY?.toString() ?? "";
 
 /* SOURCE CHAIN DEFS */
-const sourceChainProvider: StaticJsonRpcProvider =
+const rinkebyChainProvider: StaticJsonRpcProvider =
   new ethers.providers.StaticJsonRpcProvider(
     process.env.RINKEBY_URL?.toString() ?? ""
   );
 
-const sourceBridgeContractAddress: string =
+const rinkebyBridgeContractAddress: string =
   process.env.RINKEBY_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
-const sourceBridgeContract: Contract = new ethers.Contract(
-  sourceBridgeContractAddress,
+const rinkebyBridgeContract: Contract = new ethers.Contract(
+  rinkebyBridgeContractAddress,
   BridgeABI.abi,
-  sourceChainProvider
+  rinkebyChainProvider
 );
 
-const sourceRegistryContractAddress: string =
+const rinkebyRegistryContractAddress: string =
   process.env.RINKEBY_REGISTRY_CONTRACT_ADDR?.toString() ?? "";
-const sourceRegistryContract: Contract = new ethers.Contract(
-  sourceRegistryContractAddress,
+const rinkebyRegistryContract: Contract = new ethers.Contract(
+  rinkebyRegistryContractAddress,
   RegistryABI.abi,
-  sourceChainProvider
-);
-
-const validatorSourceChainWallet: Wallet = new ethers.Wallet(
-  validatorPrivateKey,
-  sourceChainProvider
+  rinkebyChainProvider
 );
 
 /* TARGET CHAIN DEFS */
-const targetChainProvider: StaticJsonRpcProvider =
+const ropstenChainProvider: StaticJsonRpcProvider =
   new ethers.providers.StaticJsonRpcProvider(
     process.env.ROPSTEN_URL?.toString() ?? ""
   );
 
-const targetBridgeContractAddress: string =
+const ropstenBridgeContractAddress: string =
   process.env.ROPSTEN_BRIDGE_CONTRACT_ADDR?.toString() ?? "";
-const targetBridgeContract: Contract = new ethers.Contract(
-  targetBridgeContractAddress,
+const ropstenBridgeContract: Contract = new ethers.Contract(
+  ropstenBridgeContractAddress,
   BridgeABI.abi,
-  targetChainProvider
+  ropstenChainProvider
 );
-const targetRegistryContractAddress: string =
+const ropstenRegistryContractAddress: string =
   process.env.ROPSTEN_REGISTRY_CONTRACT_ADDR?.toString() ?? "";
-const targetRegistryContract: Contract = new ethers.Contract(
-  targetRegistryContractAddress,
+const ropstenRegistryContract: Contract = new ethers.Contract(
+  ropstenRegistryContractAddress,
   RegistryABI.abi,
-  targetChainProvider
+  ropstenChainProvider
 );
 
 const validatorWallet: Wallet = new ethers.Wallet(validatorPrivateKey);
@@ -67,8 +66,10 @@ const transactionService: TransactionService = new TransactionService();
 
 /**
  * Handles each Lock event emitted from the source chain Bridge contract.
+ * Ensures the Lock transaction finality.
+ * Manages the Transaction entry in the Repository at the different stages.
  * Generates signature for the target chain to be used by the user.
- * Creates a new LockTransaction entry in the Repository.
+ *
  * @param event the Lock event data
  */
 async function handleLockEvent(
@@ -79,7 +80,8 @@ async function handleLockEvent(
   targetBridgeContract: Contract,
   sourceChainProvider: StaticJsonRpcProvider,
   targetChainProvider: StaticJsonRpcProvider,
-  validatorTargetChainWallet: Wallet
+  validatorTargetChainWallet: Wallet,
+  validatorSourceChainWallet: Wallet
 ) {
   const decodedData = ethers.utils.defaultAbiCoder.decode(
     ["address", "uint256"],
@@ -96,15 +98,33 @@ async function handleLockEvent(
   );
   if (
     eventTargetChainId === targetChainId &&
-    (await transactionService.GetTransaction(
+    (await transactionService.GetBridgeTransaction(
       event.transactionHash,
       TransactionType.LOCK,
       sourceChainId,
       targetChainId
     )) == null
   ) {
+    const transaction: Transaction = {
+      bridgeTxHash: event.transactionHash,
+      txType: TransactionType.LOCK,
+      txStatus: TransactionStatus.WAITING_FINALITY,
+      from: from,
+      targetChainid: targetChainId,
+      sourceChainId: sourceChainId,
+      amount: lockedAmount,
+      sourceToken: lockedToken,
+      targetToken: "N/A",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await transactionService.CreateTransaction(transaction);
+
     if (!(await ensureFinality(sourceChainProvider, event.transactionHash))) {
       console.log("Transaction was reverted, not going to process the event");
+      transaction.txStatus = TransactionStatus.FAILED;
+      transaction.updatedAt = new Date();
+      await transactionService.UpdateTransaction(transaction);
       return;
     }
 
@@ -114,7 +134,8 @@ async function handleLockEvent(
       sourceRegistryContract,
       sourceChainProvider,
       targetBridgeContract,
-      validatorTargetChainWallet
+      validatorTargetChainWallet,
+      validatorSourceChainWallet
     );
     const governance: Contract = new ethers.Contract(
       await targetBridgeContract.governance(),
@@ -129,18 +150,12 @@ async function handleLockEvent(
       targetToken,
       governance
     );
-    const transaction: Transaction = {
-      txHash: event.transactionHash,
-      txType: TransactionType.LOCK,
-      from: from,
-      targetChainid: targetChainId,
-      sourceChainId: sourceChainId,
-      amount: lockedAmount,
-      sourceToken: lockedToken,
-      targetToken: targetToken,
-      signatures: [signature],
-    };
-    await transactionService.CreateTransaction(transaction);
+
+    transaction.signatures = [signature];
+    transaction.txStatus = TransactionStatus.WAITING_CLAIM;
+    transaction.updatedAt = new Date();
+    transaction.targetToken = targetToken;
+    await transactionService.UpdateTransaction(transaction);
   } else {
     console.log(
       "Received Event that already has an entry ",
@@ -151,7 +166,9 @@ async function handleLockEvent(
 
 /**
  * Lookup in the source Registry contract if we have a connection to the wrapped target token associated with
- * the given source token address and target chain id, if not deploys new wrapped token on target chain.
+ * the given source token address and target chain id, if not deploys new wrapped token on target chain
+ * and register that connection in the source Registry contract.
+ *
  * @param sourceToken the source token address
  * @param targetChainId the target chain id
  * @returns the wrapped token address on the target chain
@@ -159,13 +176,17 @@ async function handleLockEvent(
 const lookupTargetWrappedTokenAddress = async (
   sourceToken: string,
   targetChainId: number,
-  registryContract: Contract,
+  sourceRegistryContract: Contract,
   sourceChainProvider: StaticJsonRpcProvider,
   targetBridgeContract: Contract,
-  validatorTargetChainWallet: Wallet
+  validatorTargetChainWallet: Wallet,
+  validatorSourceChainWallet: Wallet
 ): Promise<string> => {
   let targetWrappedTokenAddress =
-    await registryContract.lookupTargetTokenAddress(sourceToken, targetChainId);
+    await sourceRegistryContract.lookupTargetTokenAddress(
+      sourceToken,
+      targetChainId
+    );
   if (
     targetWrappedTokenAddress === undefined ||
     targetWrappedTokenAddress === ethers.constants.AddressZero
@@ -177,7 +198,7 @@ const lookupTargetWrappedTokenAddress = async (
       targetBridgeContract,
       validatorTargetChainWallet
     );
-    await registryContract
+    await sourceRegistryContract
       .connect(validatorSourceChainWallet) // TODO: Redeploy Registry and try this
       .registerTargetTokenAddress(
         sourceToken,
@@ -189,7 +210,8 @@ const lookupTargetWrappedTokenAddress = async (
 };
 
 /**
- * Deploys new wrapped token on the target chain, that the user will claim
+ * Deploys new wrapped token on the target chain, that the user will claim.
+ *
  * @param sourceToken the source token address, needed to fetch source token name and symbol
  * @returns the newly created wrapped token address
  */
@@ -225,35 +247,44 @@ const deployWrappedTokenOnTargetChain = async (
   return wrappedTokenAddress;
 };
 
+/**
+ * Spin up two listeners for Lock events.
+ * Rinkeby -> Ropsten.
+ * Ropsten -> Rinkeby.
+ */
 const listenForLockEvents = async () => {
-  const sourceChainId = 4;
-  const targetChainId = 3;
-  sourceChainProvider.on(
-    sourceBridgeContract.filters.Lock(null, targetChainId),
+  const rinkebyChainId = 4;
+  const ropstenChainId = 3;
+  // Listen for Rinkeby -> Ropsten Lock tx
+  rinkebyChainProvider.on(
+    rinkebyBridgeContract.filters.Lock(null, ropstenChainId),
     (event) =>
       handleLockEvent(
         event,
-        sourceChainId,
-        targetChainId,
-        sourceRegistryContract,
-        targetBridgeContract,
-        sourceChainProvider,
-        targetChainProvider,
-        validatorWallet.connect(targetChainProvider)
+        rinkebyChainId,
+        ropstenChainId,
+        rinkebyRegistryContract,
+        ropstenBridgeContract,
+        rinkebyChainProvider,
+        ropstenChainProvider,
+        validatorWallet.connect(ropstenChainProvider),
+        validatorWallet.connect(rinkebyChainProvider)
       )
   );
-  targetChainProvider.on(
-    targetBridgeContract.filters.Lock(null, sourceChainId),
+  // Listen for Ropsten -> Rinkeby Lock tx
+  ropstenChainProvider.on(
+    ropstenBridgeContract.filters.Lock(null, rinkebyChainId),
     (event) =>
       handleLockEvent(
         event,
-        targetChainId,
-        sourceChainId,
-        targetRegistryContract,
-        sourceBridgeContract,
-        targetChainProvider,
-        sourceChainProvider,
-        validatorWallet.connect(sourceChainProvider)
+        ropstenChainId,
+        rinkebyChainId,
+        ropstenRegistryContract,
+        rinkebyBridgeContract,
+        ropstenChainProvider,
+        rinkebyChainProvider,
+        validatorWallet.connect(rinkebyChainProvider),
+        validatorWallet.connect(ropstenChainProvider)
       )
   );
 };

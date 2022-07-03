@@ -2,13 +2,24 @@ import { BigNumber } from "ethers";
 import mongoose from "mongoose";
 
 enum TransactionType {
-  BURN,
-  LOCK,
+  BURN = "BURN",
+  LOCK = "LOCK",
+  UNDEFINED = "UNDEFINED",
+}
+
+enum TransactionStatus {
+  INITIATED = "INITIATED",
+  WAITING_FINALITY = "WAITING_FINALITY",
+  WAITING_CLAIM = "WAITING_CLAIM",
+  CLAIMED = "CLAIMED",
+  FAILED = "FAILED",
 }
 
 interface Transaction {
-  txHash: string;
+  bridgeTxHash: string;
+  claimTxHash?: string;
   txType: TransactionType;
+  txStatus: TransactionStatus;
   from: string;
   sourceChainId: number;
   targetChainid: number;
@@ -16,11 +27,25 @@ interface Transaction {
   sourceToken: string;
   targetToken: string;
   signatures?: string[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const TransactionSchema = new mongoose.Schema<Transaction>({
-  txHash: { type: String, required: true },
-  txType: { type: Number, enum: TransactionType, required: true },
+  bridgeTxHash: { type: String, required: true, unique: true },
+  claimTxHash: String,
+  txType: {
+    type: String,
+    enum: Object.values(TransactionType),
+    required: true,
+    default: TransactionType.UNDEFINED,
+  },
+  txStatus: {
+    type: String,
+    enum: Object.values(TransactionStatus),
+    required: true,
+    default: TransactionStatus.INITIATED,
+  },
   from: { type: String, required: true },
   sourceChainId: { type: Number, required: true },
   targetChainid: { type: Number, required: true },
@@ -28,8 +53,10 @@ const TransactionSchema = new mongoose.Schema<Transaction>({
   targetToken: { type: String, required: true },
   amount: { type: String, required: true },
   signatures: [String],
+  createdAt: { type: Date, required: true },
+  updatedAt: { type: Date, required: true },
 });
 
 const TransactionModel = mongoose.model("Transaction", TransactionSchema);
 
-export { TransactionType, Transaction, TransactionModel };
+export { TransactionType, TransactionStatus, Transaction, TransactionModel };

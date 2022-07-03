@@ -1,4 +1,4 @@
-import { SupportedToken, SupportedTokenModel } from "./supported-token";
+import { SupportedToken, SupportedTokenModel } from "./models/supported-token";
 
 //Dealing with database operations
 class SupportedTokenRepository {
@@ -17,7 +17,7 @@ class SupportedTokenRepository {
   ): Promise<SupportedToken | null> {
     return await SupportedTokenModel.findOne({
       chainId: chainId,
-      token: token,
+      token: { $regex: "^" + token + "$", $options: "i" },
     });
   }
   async GetSupportedTokens(chainId: number): Promise<SupportedToken[] | null> {

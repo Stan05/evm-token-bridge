@@ -5,7 +5,11 @@ import BridgeABI from "../abis/Bridge.json";
 import GovernanceABI from "../abis/Governance.json";
 import RegistryABI from "../abis/Registry.json";
 import TransactionRepository from "../repository/transaction-repository";
-import { Transaction, TransactionType } from "../repository/models/transaction";
+import {
+  Transaction,
+  TransactionStatus,
+  TransactionType,
+} from "../repository/models/transaction";
 import { getValidatorAllowanceSignature, ensureFinality } from "./utils";
 import TransactionService from "../service/transaction-service";
 import { networks } from "../config";
@@ -89,15 +93,33 @@ const handleBurnEvent = async (
   const burnAmount: BigNumber = decodedData[1];
   if (
     targetChainId === eventTargetChainId &&
-    (await transactionService.GetTransaction(
+    (await transactionService.GetBridgeTransaction(
       event.transactionHash,
       TransactionType.BURN,
       sourceChainId,
       targetChainId
     )) == null
   ) {
+    const transaction: Transaction = {
+      bridgeTxHash: event.transactionHash,
+      txType: TransactionType.BURN,
+      txStatus: TransactionStatus.WAITING_FINALITY,
+      from: from,
+      targetChainid: targetChainId,
+      sourceChainId: sourceChainId,
+      amount: burnAmount,
+      sourceToken: burnToken,
+      targetToken: "N/A",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await transactionService.CreateTransaction(transaction);
+
     if (!(await ensureFinality(sourceChainProvider, event.transactionHash))) {
       console.log("Transaction was reverted, not going to process the event");
+      transaction.txStatus = TransactionStatus.FAILED;
+      transaction.updatedAt = new Date();
+      await transactionService.UpdateTransaction(transaction);
       return;
     }
 
@@ -120,18 +142,11 @@ const handleBurnEvent = async (
       sourceToken,
       governance
     );
-    const transaction: Transaction = {
-      txHash: event.transactionHash,
-      txType: TransactionType.BURN,
-      from: from,
-      targetChainid: targetChainId,
-      sourceChainId: sourceChainId,
-      amount: burnAmount,
-      sourceToken: burnToken,
-      targetToken: sourceToken,
-      signatures: [signature],
-    };
-    await transactionService.CreateTransaction(transaction);
+    transaction.signatures = [signature];
+    transaction.txStatus = TransactionStatus.WAITING_CLAIM;
+    transaction.updatedAt = new Date();
+    transaction.targetToken = sourceToken;
+    await transactionService.UpdateTransaction(transaction);
   } else {
     console.log(
       "Received Event that already has an entry ",

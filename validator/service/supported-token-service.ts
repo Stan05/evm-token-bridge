@@ -1,8 +1,9 @@
-import SupportedTokenRepository from "../repository/models/supported-token-repository";
+import SupportedTokenRepository from "../repository/supported-token-repository";
 import { StaticJsonRpcProvider } from "@ethersproject/providers";
 import ConfigBuilder from "../config/config-builder";
-import { Contract } from "ethers";
+import { Contract, ethers } from "ethers";
 import { ContractName } from "../config";
+import { SupportedToken } from "../repository/models/supported-token";
 
 class SupportedTokenService {
   configBuilder: ConfigBuilder = new ConfigBuilder();
@@ -13,8 +14,19 @@ class SupportedTokenService {
     return this.supportedTokenRepository.GetSupportedTokens(chainId);
   }
 
-  async GetSupportedToken(chainId: number, token: string) {
-    return this.supportedTokenRepository.GetSupportedToken(chainId, token);
+  async GetSupportedToken(
+    chainId: number,
+    token: string
+  ): Promise<SupportedToken> {
+    return (
+      (await this.supportedTokenRepository.GetSupportedToken(
+        chainId,
+        token
+      )) ?? {
+        chainId: chainId,
+        token: token,
+      }
+    );
   }
 
   async CreateSupportedToken(chainId: number, tokenAddress: string) {
