@@ -67,7 +67,8 @@ contract Bridge is Ownable {
     }
 
     /**
-     * @notice locks with permit the non-native erc20 tokens
+     * @notice locks with permit the non-native erc20 tokens,
+     * expects to receive service fee
      */
     function lockWithPermit(
         uint16 _targetChainId,
@@ -77,8 +78,12 @@ contract Bridge is Ownable {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external {
+    ) external payable {
         require(_amount > 0, "Bridged amount is required.");
+        require(
+            feeCalculator.serviceFee() == msg.value,
+            "Not enough service fee"
+        );
 
         ERC20Token(_token).permit(
             msg.sender,
@@ -95,14 +100,19 @@ contract Bridge is Ownable {
     }
 
     /**
-     * @notice locks the non-native erc20 tokens, requires approve before sending transaction
+     * @notice locks the non-native erc20 tokens, requires approve before sending transaction,
+     * expects to receive service fee
      */
     function lock(
         uint16 _targetChainId,
         address payable _token,
         uint256 _amount
-    ) external {
+    ) external payable {
         require(_amount > 0, "Bridged amount is required.");
+        require(
+            feeCalculator.serviceFee() == msg.value,
+            "Not enough service fee"
+        );
 
         ERC20(_token).transferFrom(msg.sender, address(this), _amount);
 
@@ -110,8 +120,7 @@ contract Bridge is Ownable {
     }
 
     /**
-     * @notice mints wrapped erc20 token,
-     * expects to receive service fee
+     * @notice mints wrapped erc20 token
      * and accure that fee to the first validator that generated a valid signature
      */
     function mint(
@@ -119,12 +128,8 @@ contract Bridge is Ownable {
         uint256 _amount,
         address payable _wrappedToken,
         bytes[] calldata _validatorsSignatures
-    ) external payable {
-        require(
-            feeCalculator.serviceFee() == msg.value,
-            "Not enough service fee"
-        );
-        address[] memory _validators = governance.validateAllowanceSignatures(
+    ) external {
+        governance.validateAllowanceSignatures(
             _receiver,
             _amount,
             _wrappedToken,
@@ -139,13 +144,12 @@ contract Bridge is Ownable {
         );
         wrappedTokenContract.mint(_receiver, _amount);
 
-        feeCalculator.accureFees(_validators[0]);
-
         emit Mint(_receiver, _wrappedToken, _amount);
     }
 
     /**
-     * @notice burns wrapped erc20 tokens
+     * @notice burns wrapped erc20 tokens,
+     * expects to receive service fee
      */
     function burn(
         uint16 _targetChainId,
@@ -155,8 +159,12 @@ contract Bridge is Ownable {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external {
+    ) external payable {
         require(_amount > 0, "Burnt amount is required.");
+        require(
+            feeCalculator.serviceFee() == msg.value,
+            "Not enough service fee"
+        );
 
         ERC20Token wrappedTokenContract = wrappedTokenFactory
             .lookupTokenContract(_wrappedToken);
@@ -179,8 +187,7 @@ contract Bridge is Ownable {
     }
 
     /**
-     * @notice releases locked erc20 tokens,
-     * expects to receive service fee
+     * @notice releases locked erc20 tokens
      * and accure that fee to the first validator that generated a valid signature
      */
     function release(
@@ -188,12 +195,8 @@ contract Bridge is Ownable {
         uint256 _amount,
         address payable _token,
         bytes[] calldata _validatorsSignatures
-    ) external payable {
-        require(
-            feeCalculator.serviceFee() == msg.value,
-            "Not enough service fee"
-        );
-        address[] memory _validators = governance.validateAllowanceSignatures(
+    ) external {
+        governance.validateAllowanceSignatures(
             _receiver,
             _amount,
             _token,
@@ -201,8 +204,6 @@ contract Bridge is Ownable {
         );
 
         ERC20Token(_token).transfer(msg.sender, _amount);
-
-        feeCalculator.accureFees(_validators[0]);
 
         emit Release(msg.sender, _token, _amount);
     }

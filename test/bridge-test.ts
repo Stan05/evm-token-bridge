@@ -114,6 +114,31 @@ describe("Bridge", function () {
       ).to.be.revertedWith("Bridged amount is required.");
     });
 
+    it("Should not allow lock with not enough fee", async function () {
+      const targetChainId: number = 1;
+      const tokenAddress: string = erc20Token.address;
+      const amount: number = 1;
+      const signature = await getUserPermit(
+        user,
+        erc20Token,
+        bridge.address,
+        amount,
+        targetChainId
+      );
+
+      await expect(
+        bridge.lockWithPermit(
+          targetChainId,
+          tokenAddress,
+          amount,
+          signature.deadline,
+          signature.v,
+          signature.r,
+          signature.s
+        )
+      ).to.be.revertedWith("Not enough service fee");
+    });
+
     it("Should lock token with permit", async () => {
       const targetChainId: number = 1;
       const tokenAddress: string = erc20Token.address;
@@ -138,7 +163,10 @@ describe("Bridge", function () {
             signature.deadline,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
+            {
+              value: serviceFee,
+            }
           )
       )
         .to.emit(bridge, "Lock")
@@ -170,7 +198,10 @@ describe("Bridge", function () {
             signature.deadline,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
+            {
+              value: serviceFee,
+            }
           )
       ).to.be.revertedWith("ERC20Permit: invalid signature");
     });
@@ -201,6 +232,31 @@ describe("Bridge", function () {
         )
       ).to.be.revertedWith("Bridged amount is required.");
     });
+
+    it("Should not allow lock with not enough fee", async function () {
+      const targetChainId: number = 1;
+      const tokenAddress: string = erc20Token.address;
+      const amount: number = 10;
+      const signature = await getUserPermit(
+        user,
+        erc20Token,
+        bridge.address,
+        amount,
+        targetChainId
+      );
+
+      await expect(
+        bridge.lockWithPermit(
+          targetChainId,
+          tokenAddress,
+          amount,
+          signature.deadline,
+          signature.v,
+          signature.r,
+          signature.s
+        )
+      ).to.be.revertedWith("Not enough service fee");
+    });
   });
 
   describe("Mint", function () {
@@ -222,36 +278,10 @@ describe("Bridge", function () {
       await expect(
         bridge
           .connect(user)
-          .mint(receiverAddress, amount, wrappedTokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .mint(receiverAddress, amount, wrappedTokenAddress, signatures)
       )
         .to.emit(bridge, "Mint")
         .withArgs(receiverAddress, wrappedTokenAddress, amount);
-    });
-
-    it("Should not allow mint with not enough fee", async function () {
-      const receiverAddress: string = await user.getAddress();
-      const amount: number = 10;
-      const wrappedTokenAddress: string = wrappedErc20Token.address;
-      const signatures: string[] = [];
-      signatures.push(
-        await getValidatorAllowanceSignature(
-          unregisteredValidator,
-          receiverAddress,
-          amount,
-          wrappedTokenAddress,
-          governance
-        )
-      );
-
-      await expect(
-        bridge
-          .connect(user)
-          .mint(receiverAddress, amount, wrappedTokenAddress, signatures, {
-            value: serviceFee.sub(1),
-          })
-      ).to.be.revertedWith("Not enough service fee");
     });
 
     it("Should not allow mint with unrecognized validator", async function () {
@@ -272,9 +302,7 @@ describe("Bridge", function () {
       await expect(
         bridge
           .connect(user)
-          .mint(receiverAddress, amount, wrappedTokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .mint(receiverAddress, amount, wrappedTokenAddress, signatures)
       ).to.be.revertedWith("Unrecognized validator signature");
     });
 
@@ -296,18 +324,14 @@ describe("Bridge", function () {
       await expect(
         bridge
           .connect(user)
-          .mint(receiverAddress, amount, wrappedTokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .mint(receiverAddress, amount, wrappedTokenAddress, signatures)
       )
         .to.emit(bridge, "Mint")
         .withArgs(receiverAddress, wrappedTokenAddress, amount);
       await expect(
         bridge
           .connect(user)
-          .mint(receiverAddress, amount, wrappedTokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .mint(receiverAddress, amount, wrappedTokenAddress, signatures)
       ).to.be.revertedWith("Unrecognized validator signature");
     });
 
@@ -328,9 +352,7 @@ describe("Bridge", function () {
       await expect(
         bridge
           .connect(user)
-          .mint(receiverAddress, amount, wrappedTokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .mint(receiverAddress, amount, wrappedTokenAddress, signatures)
       ).to.be.revertedWith("Wrapped Token is not existing");
     });
   });
@@ -359,7 +381,10 @@ describe("Bridge", function () {
             signature.deadline,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
+            {
+              value: serviceFee,
+            }
           )
       ).to.emit(bridge, "Burn");
     });
@@ -392,6 +417,34 @@ describe("Bridge", function () {
       ).to.be.revertedWith("Burnt amount is required.");
     });
 
+    it("Should not allow burn with not enough fee", async function () {
+      const targetChainId: number = 1;
+      const receiverAddress: string = await user.getAddress();
+      const amount: number = 10;
+      const wrappedTokenAddress: string = wrappedErc20Token.address;
+      const signature = await getUserPermit(
+        user,
+        wrappedErc20Token,
+        receiverAddress,
+        amount,
+        targetChainId
+      );
+
+      await expect(
+        bridge
+          .connect(user)
+          .burn(
+            targetChainId,
+            wrappedTokenAddress,
+            amount,
+            signature.deadline,
+            signature.v,
+            signature.r,
+            signature.s
+          )
+      ).to.be.revertedWith("Not enough service fee");
+    });
+
     it("Should not allow burn of token not registered in the factory", async () => {
       const targetChainId: number = 1;
       const receiverAddress: string = await user.getAddress();
@@ -415,7 +468,10 @@ describe("Bridge", function () {
             signature.deadline,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
+            {
+              value: serviceFee,
+            }
           )
       ).to.be.revertedWith("Wrapped Token is not existing");
     });
@@ -442,7 +498,10 @@ describe("Bridge", function () {
             signature.deadline,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
+            {
+              value: serviceFee,
+            }
           )
       ).to.be.revertedWith("ERC20Permit: invalid signature");
     });
@@ -469,39 +528,13 @@ describe("Bridge", function () {
       await expect(
         bridge
           .connect(user)
-          .release(userAddress, amount, tokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .release(userAddress, amount, tokenAddress, signatures)
       )
         .to.emit(bridge, "Release")
         .withArgs(userAddress, tokenAddress, amount);
       expect(await erc20Token.balanceOf(userAddress)).to.equal(
         initialBalance.add(amount)
       );
-    });
-
-    it("Should not allow release with not enough fee", async function () {
-      const tokenAddress: string = erc20Token.address;
-      const amount: number = 10;
-      const userAddress: string = await user.getAddress();
-      const signatures: string[] = [];
-      signatures.push(
-        await getValidatorAllowanceSignature(
-          validator,
-          userAddress,
-          amount,
-          tokenAddress,
-          governance
-        )
-      );
-
-      await expect(
-        bridge
-          .connect(user)
-          .release(userAddress, amount, tokenAddress, signatures, {
-            value: serviceFee.sub(1),
-          })
-      ).to.be.revertedWith("Not enough service fee");
     });
 
     it("Should not allow multiple mints with one signature", async () => {
@@ -522,18 +555,14 @@ describe("Bridge", function () {
       await expect(
         bridge
           .connect(user)
-          .release(userAddress, amount, tokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .release(userAddress, amount, tokenAddress, signatures)
       )
         .to.emit(bridge, "Release")
         .withArgs(userAddress, tokenAddress, amount);
       await expect(
         bridge
           .connect(user)
-          .release(userAddress, amount, tokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .release(userAddress, amount, tokenAddress, signatures)
       ).to.be.revertedWith("Unrecognized validator signature");
     });
 
@@ -555,9 +584,7 @@ describe("Bridge", function () {
       await expect(
         bridge
           .connect(user)
-          .release(userAddress, amount, tokenAddress, signatures, {
-            value: serviceFee,
-          })
+          .release(userAddress, amount, tokenAddress, signatures)
       ).to.be.revertedWith("Unrecognized validator signature");
     });
   });
@@ -594,36 +621,6 @@ describe("Bridge", function () {
   });
 
   describe("Claim Fees", function () {
-    it("Should claim fees", async () => {
-      // sending a mint transaction, validator should have accumulated fee after it
-      const receiverAddress: string = await user.getAddress();
-      const amount: number = 10;
-      const wrappedTokenAddress: string = wrappedErc20Token.address;
-      const signatures: string[] = [];
-      signatures.push(
-        await getValidatorAllowanceSignature(
-          validator,
-          receiverAddress,
-          amount,
-          wrappedTokenAddress,
-          governance
-        )
-      );
-      await bridge
-        .connect(user)
-        .mint(receiverAddress, amount, wrappedTokenAddress, signatures, {
-          value: serviceFee,
-        });
-
-      // claiming the accumulated fee
-      const accumulatedFees: BigNumber = await feeCalculator.accumulatedFees(
-        validator.address
-      );
-      await expect(bridge.connect(validator).claimFees())
-        .to.emit(feeCalculator, "Claim")
-        .withArgs(validator.address, accumulatedFees);
-    });
-
     it("Should not allow claim fees when there are not any accumulated", async () => {
       await expect(bridge.connect(validator).claimFees()).to.be.revertedWith(
         "No accumulated fees to claim"
