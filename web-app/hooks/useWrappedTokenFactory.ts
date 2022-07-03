@@ -9,12 +9,12 @@ import { tryGetContractAddress } from "../utils/helper-functions";
 export default function useWrappedTokenFactory(contractAddress?: string) {
   if (!contractAddress) {
     const { chainId } = useWeb3React<Web3Provider>();
-    const registryAddress: string = tryGetContractAddress(
+    const contractAddressOnCurrentChain: string = tryGetContractAddress(
       chainId,
       WRAPPED_TOKEN_FACTORY
     );
     return useContract<WrappedTokenFactory>(
-      registryAddress,
+      contractAddressOnCurrentChain,
       WRAPPED_TOKEN_FACTORY_ABI.abi
     );
   }

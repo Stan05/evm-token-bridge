@@ -1,34 +1,28 @@
 import { useWeb3React } from "@web3-react/core";
 import Head from "next/head";
-import Link from "next/link";
+import React from "react";
 import Account from "../components/Account";
 import Bridge from "../components/Bridge";
 import FeeCalculator from "../components/FeeCalculator";
 import NativeCurrencyBalance from "../components/NativeCurrencyBalance";
-import TransactionHistory from "../components/TransactionHistory";
+import TransactionHistory from "../components/transactions/TransactionHistory";
 import useEagerConnect from "../hooks/useEagerConnect";
-
 
 function Home() {
   const { account, library } = useWeb3React();
 
   const triedToEagerConnect = useEagerConnect();
-
   const isConnected = typeof account === "string" && !!library;
-  
+
   return (
     <div>
       <Head>
-        <title>LimeAcademy-boilerplate</title>
+        <title>EVM Token Bridge</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <header>
         <nav>
-          <Link href="/">
-            <a>LimeAcademy-boilerplate</a>
-          </Link>
-
           <Account triedToEagerConnect={triedToEagerConnect} />
         </nav>
       </header>
@@ -36,8 +30,11 @@ function Home() {
       <main>
         <h1>
           Welcome to{" "}
-          <a href="https://github.com/LimeChain/next-web3-boilerplate">
-            LimeAcademy-boilerplate
+          <a
+            href="https://github.com/Stan05/evm-token-bridge"
+            style={{ color: "blue" }}
+          >
+            EVM Token Bridge
           </a>
         </h1>
 
@@ -45,6 +42,7 @@ function Home() {
           <section className="main-header">
             <NativeCurrencyBalance />
             <FeeCalculator />
+
             <Bridge></Bridge>
             <TransactionHistory></TransactionHistory>
           </section>
