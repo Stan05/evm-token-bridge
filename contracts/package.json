@@ -1,0 +1,39 @@
+{
+  "name": "evm-token-bridge",
+  "version": "1.0.0",
+  "description": "EVM Token Bridge ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Stan05/evm-token-bridge.git"
+  },
+  "author": "Stanislav Stankov",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Stan05/evm-token-bridge/issues"
+  },
+  "homepage": "https://github.com/Stan05/evm-token-bridge#readme",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.6",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@types/chai": "^4.3.1",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "^17.0.40",
+    "chai": "^4.3.6",
+    "ethereum-waffle": "^3.4.4",
+    "ethers": "^5.6.8",
+    "hardhat": "^2.9.7",
+    "solidity-coverage": "^0.7.21",
+    "ts-node": "^10.8.1",
+    "typescript": "^4.7.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.6.0",
+    "dotenv": "^16.0.1",
+    "react-modal": "^3.15.1"
+  }
+}
