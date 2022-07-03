@@ -374,13 +374,16 @@ const Bridge = () => {
               disabled={hasBridgingStarted}
               prefix={selectedSourceTokenDetails?.symbol}
               onValueChange={(values, source) => {
+                console.log(values);
                 setBridgeFormData({
                   ...bridgeFormData,
                   bridgeAmountInput: values.floatValue,
-                  bridgeAmount: parseUnits(
-                    values.value,
-                    selectedSourceTokenDetails?.decimals ?? 18
-                  ),
+                  bridgeAmount: values.floatValue
+                    ? parseUnits(
+                        values.value,
+                        selectedSourceTokenDetails?.decimals ?? 18
+                      )
+                    : initialState.bridgeAmount,
                 });
               }}
               allowNegative={false}
